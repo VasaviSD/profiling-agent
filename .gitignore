@@ -1,0 +1,111 @@
+# Python general
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.env/
+.venv/
+ENV/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+# Usually these files are in a .spec file. But in case not...
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.hypothesis/
+
+# Profiling data
+*.prof
+*.pstats
+*.cprofile
+
+# MyPy
+.mypy_cache/
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# PyCharm
+.idea/
+
+# ProfilingAgent specific
+
+# Compiled binaries output directory
+data/compile/
+
+# Perf data output directory (though agent cleans its own temp perf files)
+data/perf/
+
+# AI-generated optimized source code variants (match prefix used in agent)
+data/sources/optimized_code_*/
+data/sources/test_optimization_*/ # From an older default in main example
+
+# Specific perf data files if generated outside designated dirs
+perf.data
+*.perf
+
+# Dummy files created by CLI tests if not cleaned up
+perf_tool_dummy_app.cpp
+perf_tool_dummy_app_compiled
+hello_compiler_cli.cpp
+hello_compiler_cli_app
+
+# Temporary files that might be left in agent's temp dir on error
+# (The temp dir itself is usually cleaned up, but patterns for files inside)
+# *_perf_script.txt # Handled if temp dir is in .gitignore, otherwise add if needed
+
+# Secrets or sensitive configuration if any (add specific filenames if you have them)
+# .env
+# secrets.json
+# *.pem
+# *.key
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+poetry.lock
