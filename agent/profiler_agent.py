@@ -60,8 +60,11 @@ class ProfilingAgent(Tool):
         os.makedirs(self.PERF_DATA_DIR, exist_ok=True)
         os.makedirs(self.SOURCES_DIR, exist_ok=True)
 
-        self._temp_dir_obj = tempfile.TemporaryDirectory(prefix='profagent_') # For other temp files if needed
+        # Create a session-specific temporary directory within self.PERF_DATA_DIR
+        # The TemporaryDirectory object will handle cleanup of this session directory.
+        self._temp_dir_obj = tempfile.TemporaryDirectory(prefix='profagent_session_', dir=self.PERF_DATA_DIR)
         self._temp_dir = self._temp_dir_obj.name
+        logger.debug(f"ProfilingAgent session temporary directory created at: {self._temp_dir}")
 
         # Placeholder for the name of the main C++ source file to be compiled after modifications
         # This might need to be passed in or inferred.
@@ -152,6 +155,7 @@ class ProfilingAgent(Tool):
             os.makedirs(temp_perf_output_dir, exist_ok=True)
             
             logger.info(f"Running perf via _run_perf for binary: {binary_path}")
+            # _run_perf itself will place perf.data into a path derived from temp_perf_output_dir
             perf_result = self._run_perf(binary_path, output_perf_data_dir=temp_perf_output_dir, args=args) 
             if perf_result:
                 profile_results['perf'] = perf_result
@@ -234,7 +238,7 @@ class ProfilingAgent(Tool):
             return {}
             
     def optimize_binary(self, 
-                       initial_source_dir: str, # Changed from binary_path to initial_source_dir
+                       initial_source_dir: str, 
                        main_source_file: str, # e.g., "sample.cpp" within initial_source_dir
                        output_dir_name_prefix: str = "optimized_run",
                        args: Optional[List[str]] = None,
@@ -304,19 +308,21 @@ class ProfilingAgent(Tool):
             logger.info(f"--- Starting Optimization Iteration {iteration_num} ---")
             iteration_results = {"iteration": iteration_num, "status": "pending"}
 
-            # Define source directory for this iteration's modifications
-            if iteration_num == 1: # First optimization attempt
-                iter_source_output_dir = os.path.join(self.SOURCES_DIR, f"{output_dir_name_prefix}_iter{iteration_num}_base")
-                self._copy_source_files(initial_source_dir, iter_source_output_dir) # Copy original for first iteration's base
-                working_source_dir = iter_source_output_dir 
-            else: # Subsequent iterations work on the best variant from the previous iteration
-                # current_iteration_source_dir would have been updated to the best variant's path
-                # We create a new directory for the current iteration based on the previous best
-                prev_best_source_dir = current_iteration_source_dir 
-                iter_source_output_dir = os.path.join(self.SOURCES_DIR, f"{output_dir_name_prefix}_iter{iteration_num}_base")
-                self._copy_source_files(prev_best_source_dir, iter_source_output_dir)
-                working_source_dir = iter_source_output_dir
+            iter_source_output_dir = os.path.join(self.SOURCES_DIR, f"{output_dir_name_prefix}_iter{iteration_num}_base")
+            if os.path.exists(iter_source_output_dir):
+                shutil.rmtree(iter_source_output_dir) 
+            os.makedirs(iter_source_output_dir)
 
+            # Determine if we need to ignore prefixes for this copy operation
+            # Only ignore if the source is the initial_source_dir provided by the user
+            ignore_prefixes_for_copy = [output_dir_name_prefix] if current_iteration_source_dir == initial_source_dir else None
+            
+            self._copy_source_files(
+                current_iteration_source_dir, 
+                iter_source_output_dir,
+                top_level_dirs_to_ignore_prefixes=ignore_prefixes_for_copy
+            )
+            working_source_dir = iter_source_output_dir 
 
             # 1. Profile the current binary (which was compiled from working_source_dir or initial_source_dir)
             logger.info(f"Profiling binary: {current_binary_path} for sources in {working_source_dir}")
@@ -621,7 +627,7 @@ class ProfilingAgent(Tool):
         
         # Generate report string using PerfTool's report (in script mode for parsing)
         logger.info(f"Generating perf report (script mode) from: {full_perf_data_path}")
-        report_success, report_string, rep_stderr = self.perf_tool.report(use_script_mode=True) # Gets perf script output
+        report_success, report_string, rep_stderr = self.perf_tool.report(use_script_mode=False) # Gets perf script output
 
         if not report_success:
             self.set_error(f"PerfTool report generation failed for {full_perf_data_path}. Error: {self.perf_tool.get_error()}."
@@ -724,6 +730,7 @@ class ProfilingAgent(Tool):
             }
         except Exception as e:
             self.set_error(f'Error parsing perf report: {str(e)}')
+            logger.error(f"Error in _parse_perf_report: {str(e)}")
             return {"tool": "perf", "hotspots": [], "error": str(e)}
             
     def _extract_source_context(self, profile_results: Dict[str, Any], source_dir: str) -> Dict[str, Any]:
@@ -865,38 +872,40 @@ class ProfilingAgent(Tool):
                                 
         return source_context
         
-    def _copy_source_files(self, source_dir: str, output_dir: str) -> None:
-        """Copy source files to output directory."""
-        import shutil
+    def _copy_source_files(self, source_dir: str, output_dir: str, top_level_dirs_to_ignore_prefixes: Optional[List[str]] = None) -> None:
+        """Copy relevant source files from source_dir to output_dir, maintaining structure.
+        If top_level_dirs_to_ignore_prefixes is provided, directories in the immediate top-level of source_dir
+        whose names start with any of these prefixes will be ignored during the walk.
+        """
+        # Ensure output_dir exists; if not, create it.
+        # The caller (optimize_binary) is responsible for ensuring output_dir is clean if needed.
+        os.makedirs(output_dir, exist_ok=True)
         
-        # Save the current state
-        error_state = self.error_message
-        ready_state = self._is_ready
-        
+        logger.debug(f"Copying source files from '{source_dir}' to '{output_dir}' (ignoring top-level dir prefixes: {top_level_dirs_to_ignore_prefixes})")
+        copied_any = False
         for root, dirs, files in os.walk(source_dir):
+            if root == source_dir and top_level_dirs_to_ignore_prefixes:
+                # Filter out directories at the top level of source_dir that match any of the ignore prefixes
+                # Modify dirs in-place to prevent os.walk from traversing them
+                dirs[:] = [d for d in dirs if not any(d.startswith(prefix) for prefix in top_level_dirs_to_ignore_prefixes)]
+
             for file in files:
-                if file.endswith(('.c', '.cpp', '.cc', '.h', '.hpp', '.rs')):
+                # Filter for common C/C++ and Rust source/header files
+                if file.endswith(('.c', '.cpp', '.cc', '.h', '.hpp', '.hxx', '.cxx', '.hh', '.rs')):
                     source_path = os.path.join(root, file)
-                    # Create relative path to maintain directory structure
-                    rel_path = os.path.relpath(source_path, source_dir)
-                    dest_path = os.path.join(output_dir, rel_path)
                     
-                    # Create directories if they don't exist
+                    relative_path = os.path.relpath(source_path, source_dir)
+                    dest_path = os.path.join(output_dir, relative_path)
+                    
                     try:
                         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                        
-                        # Copy the file
                         shutil.copy2(source_path, dest_path)
+                        logger.debug(f"Copied: {source_path} -> {dest_path}")
+                        copied_any = True
                     except Exception as e:
-                        print(f'Warning: Error copying file {source_path}: {str(e)}')
-                        # Don't set error_message to avoid resetting is_ready state
-                        
-        # Restore error state only if it wasn't already set
-        if not self.error_message:
-            self.error_message = error_state
-            
-        # Restore ready state
-        self._is_ready = ready_state
+                        logger.warning(f"Warning: Error copying file {source_path} to {dest_path}: {str(e)}")
+        if not copied_any:
+            logger.warning(f"No source files were copied from '{source_dir}' to '{output_dir}'. Check filters or source_dir contents.")
                     
     def _apply_optimizations_to_variant(self, optimization_variant: Dict[str, Any], source_dir_for_variant: str) -> bool:
         """Apply a single optimization variant to source files in the specified directory."""

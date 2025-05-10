@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import CppCompiler for on-the-fly compilation in main
 try:
-    from tool.cpp_compiler import CppCompiler
+    from tool.compile.cpp_compiler import CppCompiler
     CPP_COMPILER_AVAILABLE = True
 except ImportError:
     CPP_COMPILER_AVAILABLE = False
@@ -325,7 +325,7 @@ if __name__ == '__main__':
     # 1. Determine the target executable for perf
     if args.compile_source:
         if not CPP_COMPILER_AVAILABLE:
-            logger.error("Error: --compile-source specified, but CppCompiler could not be imported from tool.cpp_compiler.")
+            logger.error("Error: --compile-source specified, but CppCompiler could not be imported from tool.compile.cpp_compiler.")
             exit(1)
         logger.info(f"Compiling source file: {args.compile_source} -> {args.output_compiled_name}")
         compiler = CppCompiler()
