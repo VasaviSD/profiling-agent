@@ -198,7 +198,7 @@ class ProfilingAgent(Tool):
             
         # Check if we have any hotspots to analyze
         if not profile_results or not any(
-            tool_results.get('hotspots', []) 
+            tool_results.get('raw_report', '') 
             for tool_name, tool_results in profile_results.items()
         ):
             self.set_error('No performance hotspots found in the profiling results')
@@ -227,8 +227,7 @@ class ProfilingAgent(Tool):
                         "natural language explanations and code snippets where appropriate."
                     )},
                     {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"}
+                ]
             )
             response = completion.choices[0].message.content
             suggestions = json.loads(response)
@@ -337,9 +336,9 @@ class ProfilingAgent(Tool):
             iteration_results["profile_results"] = profile_data
             
             # Check for hotspots before proceeding
-            if not profile_data.get('perf', {}).get('hotspots'):
-                logger.info("No hotspots found in profiling data. Ending optimization iterations.")
-                iteration_results.update({"status": "no_hotspots_found"})
+            if not profile_data.get('perf', {}).get('raw_report'):
+                logger.info("No raw report found in profiling data. Ending optimization iterations.")
+                iteration_results.update({"status": "no_raw_report_found"})
                 results["iterations"].append(iteration_results)
                 # Consider this a success if it ran through, just nothing to optimize
                 if not results["final_binary_path"]: # If this is the first iteration and no hotspots
@@ -349,14 +348,13 @@ class ProfilingAgent(Tool):
                 break
 
             source_context_for_llm = {}
-            if profile_data.get('perf', {}).get('hotspots'):
-                for hotspot in profile_data['perf']['hotspots']:
-                    if 'file' in hotspot and hotspot.get('source_context'):
-                        file_key = hotspot['file']
-                        # Ensure file_key is relative to working_source_dir if possible for consistency
-                        if os.path.isabs(file_key) and file_key.startswith(working_source_dir):
-                            file_key = os.path.relpath(file_key, working_source_dir)
-                        source_context_for_llm[file_key] = hotspot['source_context']
+            if profile_data.get('perf', {}).get('raw_report'):
+                for root, dirs, files in os.walk(working_source_dir):
+                    for file in files:
+                        if file.endswith(('.cpp', '.c', '.h', '.hpp', '.rs')):
+                            file_path = os.path.join(root, file)
+                            with open(file_path, 'r') as f:
+                                source_context_for_llm[os.path.relpath(file_path, working_source_dir)] = f.read()
             
             if not source_context_for_llm:
                  logger.warning("No source context extracted from profiling, cannot get suggestions.")
@@ -639,21 +637,6 @@ class ProfilingAgent(Tool):
                 except OSError: pass 
             return {}
 
-        # Parse the report string (which is from 'perf script')
-        temp_report_file = None
-        parsed_data = {}
-        try:
-            # _parse_perf_report expects a file path.
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=self._temp_dir, suffix='_perf_script.txt') as tmp_f:
-                tmp_f.write(report_string)
-                temp_report_file = tmp_f.name
-            
-            logger.info(f"Perf script output saved to temp file: {temp_report_file} for parsing.")
-            parsed_data = self._parse_perf_report(temp_report_file) # Existing method
-        finally:
-            if temp_report_file and os.path.exists(temp_report_file):
-                os.remove(temp_report_file)
-        
         # Clean up the specific perf.data file after successful report generation and parsing
         if os.path.exists(full_perf_data_path):
             try:
@@ -662,7 +645,7 @@ class ProfilingAgent(Tool):
             except OSError as e:
                 logger.warning(f"Could not remove perf data file {full_perf_data_path}: {e}")
 
-        return parsed_data
+        return {"tool": "perf", "raw_report": report_string}
             
     def _run_redspy(self, binary_path: str, args: Optional[List[str]] = None) -> Dict[str, Any]:
         """Placeholder for RedSpy tool integration."""
@@ -678,60 +661,6 @@ class ProfilingAgent(Tool):
         """Placeholder for LoadSpy tool integration."""
         # In a real implementation, this would run LoadSpy tool
         return {"tool": "loadspy", "status": "not_implemented"}
-            
-    def _parse_perf_report(self, report_path: str) -> Dict[str, Any]:
-        """Parse perf report output into structured data."""
-        hotspots = []
-        
-        try:
-            with open(report_path, 'r') as f:
-                lines = f.readlines()
-                
-            current_sample = None
-            for line in lines:
-                line = line.strip()
-                
-                # Look for percentage lines
-                if line and line[0].isdigit() and '%' in line:
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        percentage = parts[0].rstrip('%')
-                        symbol = parts[-1]
-                        
-                        # Skip non-user code symbols
-                        if '[kernel' in line or symbol.startswith('_'):
-                            continue
-                            
-                        current_sample = {
-                            "function": symbol,
-                            "cpu_time": percentage + "%"
-                        }
-                        
-                # Look for source file information
-                elif current_sample and ':' in line and '/' in line:
-                    # This might be a filename:line format
-                    parts = line.split(':')
-                    if len(parts) >= 2 and os.path.exists(parts[0]):
-                        current_sample["file"] = parts[0]
-                        current_sample["line"] = int(parts[1].split()[0])
-                        hotspots.append(current_sample)
-                        current_sample = None
-            
-            # If we have no source locations but have hotspots, add the first few anyway
-            if not hotspots and current_sample is not None:
-                # Add a placeholder for source location
-                current_sample["file"] = "unknown"
-                current_sample["line"] = 0
-                hotspots.append(current_sample)
-                        
-            return {
-                "tool": "perf",
-                "hotspots": hotspots
-            }
-        except Exception as e:
-            self.set_error(f'Error parsing perf report: {str(e)}')
-            logger.error(f"Error in _parse_perf_report: {str(e)}")
-            return {"tool": "perf", "hotspots": [], "error": str(e)}
             
     def _extract_source_context(self, profile_results: Dict[str, Any], source_dir: str) -> Dict[str, Any]:
         """Extract source code context for each hotspot."""
@@ -1010,7 +939,7 @@ if __name__ == '__main__':
         help="OpenAI API key. If not provided, tries to use OPENAI_API_KEY environment variable."
     )
     parser.add_argument(
-        "--openai_model", type=str, default="gpt-4", # Or your preferred default
+        "--openai_model", type=str, default="gpt-3.5-turbo", # Or your preferred default
         help="OpenAI model to use (e.g., gpt-4, gpt-3.5-turbo)."
     )
     parser.add_argument(
