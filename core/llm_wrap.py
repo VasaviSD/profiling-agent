@@ -8,7 +8,7 @@ from typing import List, Dict
 from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import LiteralScalarString
 
-from hagent.core.llm_template import LLM_template
+from core.llm_template import LLM_template
 
 
 def dict_deep_merge(dict1: Dict, dict2: Dict) -> Dict:

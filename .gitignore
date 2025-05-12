@@ -109,3 +109,7 @@ ehthumbs.db
 Thumbs.db
 
 poetry.lock
+
+*.log
+*output.yaml
+.litellm_cache

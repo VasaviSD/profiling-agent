@@ -9,8 +9,8 @@ import contextlib
 from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import LiteralScalarString
 
-from hagent.core.llm_wrap import dict_deep_merge
-from hagent.core.llm_wrap import LLM_wrap
+from core.llm_wrap import dict_deep_merge
+from core.llm_wrap import LLM_wrap
 
 
 def wrap_literals(obj):

@@ -1,0 +1,40 @@
+performance_analysis_prompt:
+  llm:
+    model: "openai/gpt-3.5-turbo" # Replace with your desired model
+    temperature: 0.5
+    # Add other necessary LLM parameters here, e.g.:
+    # max_tokens: 2048
+    # top_p: 1.0
+  generate_performance_analysis_prompt:
+    - role: system
+      content: |
+        You are an expert C++ performance analyst specialized in interpreting Linux `perf` output. Your task is to analyze provided source code and `perf` results, identify the most significant performance bottlenecks, explain their likely cause based on the `perf` metrics and code structure, and report your findings clearly and concisely. Focus on actionable insights that can guide optimization efforts.
+    - role: user
+      content: |
+        I have profiled a C++ project using the Linux `perf` tool.
+
+        Here is the source code of the project (or relevant parts) you should analyze:
+        ```cpp
+        {source_code}
+        ```
+
+        The `perf` command used to generate the data was:
+        ```bash
+        {perf_command}
+        ```
+
+        Here is the textual output from `perf report`:
+        ```
+        {perf_report_output}
+        ```
+
+        Please analyze this data to identify the primary performance bottlenecks. Focus on functions or code regions that account for more than `{threshold}%` of the total samples or show other strong indicators of performance issues (e.g., high cache miss rates in critical sections).
+
+        For each identified bottleneck, provide the following information:
+        * **Location:** Specify the function name and file/line number if possible.
+        * **Metric/Impact:** State the relevant `perf` metric and its value (e.g., '45% of CPU samples', 'High cache misses: 10% of memory accesses', 'Significant branch mispredictions').
+        * **Likely Cause:** Provide a brief hypothesis on *why* this area is slow, referencing the code structure and `perf` metrics (e.g., 'Tight loop with poor data locality', 'Excessive small allocations', 'Frequent system calls', 'Inefficient algorithm for this data size'). Include `{context}` lines of surrounding code (e.g., 3 lines before and 3 lines after the bottleneck line) to illustrate the context.
+
+        Output *only* the list of identified bottlenecks in a clear, structured format (e.g., using Markdown list items or similar, with each bottleneck clearly separated). Do not include any introductory or concluding remarks, no notes, no explanations outside the bottleneck descriptions themselves.
+  threshold: 5 # Example: Focus on hotspots >= 5% of samples
+  context: 3   # Example: Show 3 lines of code context before/after bottleneck line
