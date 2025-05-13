@@ -230,7 +230,6 @@ class Profiler(Step):
             # PerfTool.report() uses the self.perf_data_file set during its setup
             report_ok, report_stdout, report_stderr_from_report = self.perf_tool.report(report_args=["--stdio"]) # Request standard text output
             
-            preset_result['perf_report']['stdout'] = report_stdout
             preset_result['perf_report']['stderr'] = report_stderr_from_report
             preset_result['perf_report']['error'] = report_stderr_from_report if not report_ok else ""
 
@@ -242,8 +241,15 @@ class Profiler(Step):
                 overall_success = False
                 # Still continue, maybe another preset worked fully
                 continue 
+            else:
+                # Truncate the report output to top ~30% of lines
+                report_lines = report_stdout.strip().split('\n')
+                num_lines_total = len(report_lines)
+                num_lines_to_keep = max(10, int(num_lines_total * 0.30)) # Keep at least 10 lines, or 30%
+                truncated_report = '\n'.join(report_lines[:num_lines_to_keep])
+                preset_result['perf_report']['stdout'] = truncated_report
+                print(f"Perf report generated successfully for preset {preset_name}. Stored top {num_lines_to_keep}/{num_lines_total} lines.")
 
-            print(f"Perf report generated successfully for preset {preset_name}.")
             preset_result['status'] = 'success' # Mark preset as fully successful
 
 
