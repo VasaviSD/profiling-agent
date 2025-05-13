@@ -96,7 +96,7 @@ Assuming your input YAML is `step/profiler/examples/profiler_input_example.yaml`
 
 ```bash
 # Make sure you are in the root directory of the profiling-agent project
-poetry run python -m step.profiler.profiler_agent --input step/profiler/examples/profiler_input_example.yaml --output step/profiler/examples/profiler_output_example.yaml
+poetry run python -m step.profiler.profiler_agent --o step/profiler/examples/profiler_output_example.yaml step/profiler/examples/profiler_input_example.yaml
 ```
 
 This command will read settings from `profiler_input_example.yaml`, compile the C++ code from the specified `source_dir` with different presets, run `perf record` and `perf report` for each, select the output from the preferred preset, and save the results to `profiler_output_example.yaml`.
