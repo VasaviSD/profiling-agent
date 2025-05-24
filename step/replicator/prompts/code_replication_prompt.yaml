@@ -4,7 +4,7 @@
 
 code_replication_prompt:
   llm:
-    model: "openai/gpt-4-turbo-preview" 
+    model: "openai/gpt-4.1-mini" 
     temperature: 0.6
     # Add other necessary LLM parameters here if needed, e.g.:
     # max_tokens: 4096 

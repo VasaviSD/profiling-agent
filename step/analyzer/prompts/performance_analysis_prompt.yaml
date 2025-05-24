@@ -1,6 +1,6 @@
 performance_analysis_prompt:
   llm:
-    model: "openai/gpt-3.5-turbo" # Replace with your desired model
+    model: "openai/gpt-4.1-mini" # Replace with your desired model
     temperature: 0.5
     # Add other necessary LLM parameters here, e.g.:
     # max_tokens: 2048
