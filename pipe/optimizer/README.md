@@ -2,68 +2,87 @@
 
 ## Overview
 
-The Optimizer Pipe (`optimizer.py`) is an executable script that orchestrates a sequence of agents (steps) to perform automated C++ performance analysis and code modification proposals. It provides a user-friendly command-line interface to run the Profiler, Analyzer, and Replicator agents in a connected pipeline.
+The Optimizer Pipe (`optimizer.py`) is an executable script that orchestrates a sequence of agents (steps) to perform automated C++ performance analysis, code modification proposals, patching, and re-profiling of variants. It provides a user-friendly command-line interface to run the Profiler, Analyzer, Replicator, and Patcher agents in a connected pipeline, and then re-profiles the generated code variants.
 
 This pipe is intended to simplify the process of:
-1.  Profiling C++ code to gather performance data.
+1.  Profiling C++ code to gather performance data for one or more source files.
 2.  Analyzing the performance data to identify bottlenecks.
 3.  Generating potential code variants to address these bottlenecks.
+4.  Saving these code variants as new source files.
+5.  Profiling each of the generated and saved code variants.
 
 ## Functionality
 
--   **Orchestration:** Sequentially runs the `Profiler`, `Analyzer`, and `Replicator` agents.
+-   **File Discovery:** Recursively finds C++ source files (`.cpp`, `.cc`, `.cxx`) in a specified input directory.
+-   **Orchestration:** For each found C++ file, sequentially runs the `Profiler`, `Analyzer`, `Replicator`, and `Patcher` agents.
 -   **Data Flow:** Manages the flow of data between these agents, using the output of one step as the input for the next.
--   **Input:** Takes an initial YAML configuration file for the `Profiler` (specifying the C++ source directory and profiling options) and a general output directory.
--   **Output:** Saves the YAML output from each agent step (`Profiler`, `Analyzer`, `Replicator`) into the specified output directory. The final output from the `Replicator` contains the proposed code variants.
--   **Iteration (Basic):** Includes a basic loop for iterations. For multiple iterations, the output of the Replicator would ideally feed back into the Profiler (e.g., by updating the source code path to a modified version). This feedback loop is currently a placeholder in the script.
+-   **Variant Profiling:** After the Patcher saves the code variants, the pipe individually profiles each successfully patched variant.
+-   **Input:** Takes an input directory containing C++ source files and a general output directory.
+-   **Output:** Saves the YAML output from each agent step (`Profiler`, `Analyzer`, `Replicator`, `Patcher`) and the Profiler outputs for each variant into a structured hierarchy within the specified output directory.
+-   **Iteration:** Supports multiple optimization iterations for each C++ file. In each iteration, the initial source file is processed. Future enhancements could allow feeding a selected variant from one iteration into the next.
 
 ## How to Run
 
 The Optimizer Pipe is run from the command line, typically from the root of the `profiling-agent` project directory.
 
 ```bash
-python -m pipe.optimizer.optimizer --profiler-input-yaml <path_to_profiler_config.yaml> --output-dir <path_to_output_directory>
+python -m pipe.optimizer.optimizer --input-dir <path_to_cpp_source_directory> --output-dir <path_to_output_directory>
 ```
 
 **Command-Line Arguments:**
 
--   `--profiler-input-yaml` (string, **required**):
-    Path to the YAML file containing the input configuration for the initial `Profiler` step. This file should define at least `source_dir` and can include other profiler-specific options (see `step/profiler/README.md` for details).
-    *Example:* `data/examples/profiler_input_initial.yaml`
+-   `--input-dir` (string, **required**):
+    Path to the directory containing the C++ source files (`.cpp`, `.cc`, `.cxx`) to be processed. The script will search recursively.
+    *Example:* `examples/cpp_sources/`
 
 -   `--output-dir` (string, **required**):
-    Path to a directory where all intermediate and final YAML outputs from each agent in the pipeline will be saved. The directory will be created if it doesn't exist.
+    Path to a directory where all intermediate and final YAML outputs from each agent in the pipeline, as well as patched source files and their profiling results, will be saved. The directory will be created if it doesn't exist. Subdirectories will be created for each processed source file and each iteration.
     *Example:* `./optimizer_run_outputs`
 
 -   `--iterations` (integer, optional, default: `1`):
-    The number of times to run the Profiler -> Analyzer -> Replicator sequence. 
-    **Note:** True multi-iteration (where the Replicator's output modifies the source for the next Profiler run) is not fully implemented; this argument currently just repeats the sequence with the initial profiler input for each iteration unless the script is manually modified to update the source path based on previous Replicator outputs.
+    The number of times to run the Profiler -> Analyzer -> Replicator -> Patcher -> Profile Variants sequence for each discovered C++ file.
+    **Note:** Currently, each iteration starts by profiling the *original* source file.
 
 **Example Usage:**
 
 ```bash
 # Ensure you are in the root directory of the profiling-agent project
 poetry run python -m pipe.optimizer.optimizer \
-    --profiler-input-yaml step/profiler/examples/profiler_input_example.yaml \
-    --output-dir ./optimizer_run_1
+    --input-dir examples/cpp_sources/ \
+    --output-dir ./optimizer_run_1 \
+    --iterations 1
 ```
 
-## Pipeline Steps & Outputs
+## Pipeline Steps & Outputs (per C++ file, per iteration)
 
-1.  **Profiler Agent:** 
-    -   Input: Uses the `--profiler-input-yaml` provided to the pipe.
-    -   Output: `profiler_output_iter<N>.yaml` (saved in `--output-dir`). This contains `source_code`, `perf_command`, and `perf_report_output`.
+For each C++ source file found in `--input-dir`, and for each iteration:
+
+1.  **Initial Profiler Agent:**
+    -   Input: The directory containing the current C++ source file. An input YAML (`profiler_input_initial_{original_filename}.yaml`) is generated by the pipe.
+    -   Output: `profiler_output.yaml` (saved in `<output-dir>/<sanitized_source_path>/iter_<N>/`). This contains original `source_code`, `perf_command`, and `perf_report_output`.
 
 2.  **Analyzer Agent:**
-    -   Input: Takes `profiler_output_iter<N>.yaml` from the previous step.
-    -   Output: `analyzer_output_iter<N>.yaml` (saved in `--output-dir`). This includes `performance_analysis` and structured bottleneck details.
+    -   Input: Takes `profiler_output.yaml` from the previous step.
+    -   Output: `analyzer_output.yaml` (saved in the same iteration directory). This includes `performance_analysis` and structured bottleneck details.
 
 3.  **Replicator Agent:**
-    -   Input: Takes `analyzer_output_iter<N>.yaml` from the previous step.
-    -   Output: `replicator_output_iter<N>.yaml` (saved in `--output-dir`). This is the final output of one pipeline pass, containing `replication_strategy` and `replicated_variants`.
+    -   Input: Takes `analyzer_output.yaml` from the previous step.
+    -   Output: `replicator_output.yaml` (saved in the same iteration directory). This contains `replication_strategy` and `modified_code_variants`.
+
+4.  **Patcher Agent:**
+    -   Input: Takes `replicator_output.yaml`. The pipe injects `original_file_name`.
+    -   Output: 
+        -   `patcher_output.yaml` (saved in the same iteration directory). Details success/failure of writing each variant.
+        -   Patched source files: e.g., `<output-dir>/<sanitized_source_path>/iter_<N>/Patcher/data/patched_variants/<variant_id>/<original_file_name>.cpp`. (Note: The Patcher's internal `DEFAULT_OUTPUT_BASE_DIR` is relative to its execution, so the pipe doesn't directly control this part of the path, but the overall structure is within the iteration directory). The `Patcher` actually saves to `data/patched_variants/<sanitized_variant_id_dir>/<original_file_name>`. The pipe copies these to a temporary location for variant profiling.
+
+5.  **Variant Profiling (Loop):** For each successfully patched variant:
+    -   The patched C++ source file is copied into a temporary isolated directory.
+    -   **Profiler Agent (for variant):**
+        -   Input: The temporary directory containing the single patched C++ variant. An input YAML (`profiler_input_variant_<sanitized_variant_id>.yaml`) is generated by the pipe.
+        -   Output: `profiler_output_variant_<sanitized_variant_id>.yaml` (saved in `<output-dir>/<sanitized_source_path>/iter_<N>/profiler_run_variant_<sanitized_variant_id>/`). Contains profiling results for the specific code variant.
 
 ## Dependencies
 
 -   Python 3.x
--   All dependencies for the `Profiler`, `Analyzer`, and `Replicator` agents (including `core.utils`, and the respective agent modules).
+-   All dependencies for the `Profiler`, `Analyzer`, `Replicator`, and `Patcher` agents (including `core.utils`, and the respective agent modules).
 -   External tools required by the agents (e.g., C++ compiler, Linux `perf`). 
