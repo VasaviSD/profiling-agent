@@ -4,6 +4,7 @@
 import os
 import re # For sanitizing directory names
 import copy # For deep copying input data
+# import subprocess # No longer attempting compilation here
 from core.step import Step
 import time
 # Assuming core.utils has write_yaml, read_yaml if this agent needs to process YAMLs directly
@@ -11,30 +12,32 @@ import time
 
 class Patcher(Step):
     DEFAULT_OUTPUT_BASE_DIR = "data/patched_variants"
+    # COMPILER = "g++" # Removed
+    # COMPILER_FLAGS = ["-std=c++17", "-O2", "-Wall"] # Removed
     """
-    Applies all code variants found in the input to an original source file, 
-    saving each variant as a new file in a dedicated subdirectory.
+    Applies all code variants found in the input, saving each as a new C++ source file.
+    It does not compile the variants; compilation is expected to be handled by a subsequent Profiler step.
     All input key-value pairs are persisted in the output YAML.
 
     Reads from (input YAML):
-      - source_code: str (Content of the original C++ source file, for context, not directly used for patching if variants are full code)
+      - source_code: str (Content of the original C++ source file, for context)
       - modified_code_variants: list 
         - A list of dictionaries, where each dictionary represents a code variant and must contain:
           - variant_id: str (e.g., "Variant_1", used for naming the output subdirectory)
           - code: str (The full C++ code of that variant)
       - original_file_name: str (e.g., "main.cpp", used as the filename for each patched variant)
-      # Other fields from Replicator output (like perf_command, analysis, etc.) may be present but are ignored by Patcher.
+      # Other fields from Replicator output may be present but are ignored by Patcher's core logic.
 
     Emits (output YAML):
       - All key-value pairs from the input YAML are preserved.
-      - patcher_status: str ('all_success', 'partial_success', or 'all_failed') (overwrites if present in input)
-      - patcher_overall_error (optional): str (High-level error message if something fundamental failed) (overwrites if present in input)
+      - patcher_status: str ('all_success', 'partial_success', or 'all_failed') - reflects file writing success.
+      - patcher_overall_error (optional): str (High-level error message if something fundamental failed).
       - patched_variants_results: list (overwrites if present in input)
         - A list of dictionaries, one for each attempted variant patch:
           - variant_id: str
-          - patched_file_path: str (Full path to the newly created patched source file, if successful)
-          - status: str ('success' or 'failed')
-          - error: str (Error message if patching this specific variant failed, None if successful)
+          - patched_file_path: str (Full path to the newly created patched source file, if successful).
+          - status: str ('success' or 'failed') - for file writing.
+          - error: str (Error message if writing this specific variant failed, None if successful).
     """
 
     def _sanitize_filename(self, filename):
@@ -82,22 +85,23 @@ class Patcher(Step):
                 output_data['patcher_status'] = 'all_failed'
                 return output_data
 
-            success_count = 0
-            failure_count = 0
+            files_written_success_count = 0
+            files_written_failure_count = 0
 
             for variant_data in modified_code_variants:
                 variant_result = {
                     'variant_id': None,
                     'patched_file_path': None,
-                    'status': 'pending',
-                    'error': None
+                    'status': 'pending', # File writing status
+                    'error': None       # File writing error
+                    # Removed compilation_status, stdout, stderr, executable_path
                 }
 
                 if not isinstance(variant_data, dict):
                     variant_result['error'] = "Variant data is not a dictionary."
                     variant_result['status'] = 'failed'
                     output_data['patched_variants_results'].append(variant_result)
-                    failure_count += 1
+                    files_written_failure_count += 1
                     continue
 
                 raw_variant_id = variant_data.get('variant_id')
@@ -108,13 +112,13 @@ class Patcher(Step):
                 sanitized_variant_id_for_dir = self._sanitize_filename(raw_variant_id).lower() if raw_variant_id else "unknownvariantdir"
 
                 if not raw_variant_id or not selected_variant_code:
-                    missing_variant_fields = []
-                    if not raw_variant_id: missing_variant_fields.append('variant_id')
-                    if not selected_variant_code: missing_variant_fields.append('code')
-                    variant_result['error'] = f"Variant '{raw_variant_id or '(missing ID)'}' missing fields: {', '.join(missing_variant_fields)}"
+                    missing_fields = []
+                    if not raw_variant_id: missing_fields.append('variant_id')
+                    if not selected_variant_code: missing_fields.append('code')
+                    variant_result['error'] = f"Variant '{variant_result['variant_id']}' missing fields: {', '.join(missing_fields)}"
                     variant_result['status'] = 'failed'
                     output_data['patched_variants_results'].append(variant_result)
-                    failure_count += 1
+                    files_written_failure_count += 1
                     continue
                 
                 try:
@@ -136,25 +140,26 @@ class Patcher(Step):
                     variant_result['patched_file_path'] = os.path.abspath(patched_file_path)
                     variant_result['status'] = 'success'
                     print(f"Successfully wrote patched file for {raw_variant_id}: {variant_result['patched_file_path']}")
-                    success_count += 1
+                    files_written_success_count += 1
                 except Exception as e_variant:
-                    error_msg_variant = f"Error patching variant {raw_variant_id}: {e_variant}"
+                    error_msg_variant = f"Error writing source file for variant {raw_variant_id}: {e_variant}"
                     print(error_msg_variant)
                     variant_result['error'] = error_msg_variant
                     variant_result['status'] = 'failed'
-                    failure_count += 1
+                    files_written_failure_count += 1
                 
                 output_data['patched_variants_results'].append(variant_result)
 
-            if success_count > 0 and failure_count == 0:
-                output_data['patcher_status'] = 'all_success'
-            elif success_count > 0 and failure_count > 0:
-                output_data['patcher_status'] = 'partial_success'
-            elif success_count == 0 and failure_count > 0:
-                output_data['patcher_status'] = 'all_failed'
-            else: # Should not happen if modified_code_variants is non-empty
+            if files_written_success_count > 0 and files_written_failure_count == 0:
+                output_data['patcher_status'] = 'all_success' # All files written successfully
+            elif files_written_success_count > 0 and files_written_failure_count > 0:
+                output_data['patcher_status'] = 'partial_success' # Some files written
+            elif files_written_success_count == 0 and files_written_failure_count > 0:
+                output_data['patcher_status'] = 'all_failed' # No files written
+            else: 
                 output_data['patcher_status'] = 'all_failed' 
-                output_data['patcher_overall_error'] = 'No variants processed or unexpected state.'
+                if not output_data['patcher_overall_error']:
+                     output_data['patcher_overall_error'] = 'No variants processed or unexpected state during file writing summary.'
 
         except Exception as e_global:
             error_msg_global = f"Critical error during Patcher execution: {e_global}"

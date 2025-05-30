@@ -37,10 +37,12 @@ code_replication_prompt:
         Please perform the following:
         1.  Start your response with "Proposed Fix Strategy:" followed by a brief (1-2 paragraph) description of your overall strategy for addressing this bottleneck based on the hypothesis.
         2.  After the strategy, generate exactly 3 distinct C++ code variants that implement a fix.
-            *   For each variant, use a heading like "### Variant 1", "### Variant 2", and "### Variant 3".
-            *   Immediately following each heading, provide the complete modified C++ code (e.g., the full function or a significant, compilable block) within a C++ Markdown code block (```cpp ... ```).
-            *   Ensure each variant is syntactically correct.
-            *   Aim for diversity in the approaches for each variant if possible (e.g., algorithmic change, data structure optimization, loop restructuring, parallelization hints, use of different C++ features or library functions).
-            *   Briefly explain the rationale behind each variant in a short comment before its code block if the change isn't obvious.
+            * For each variant, use a heading like "### Variant 1", "### Variant 2", and "### Variant 3".
+            * Immediately following each heading, provide the **complete and self-contained modified C++ code** within a C++ Markdown code block (```cpp ... ```).
+                * **Crucially, this means that if the original `source_code` included elements like `#include` directives, namespace declarations, a `main()` function, class definitions, helper functions, variables, comments, or other structural components, these must be fully present and correctly adapted in your generated variant.** Do not omit these essential components.
+                * The goal is for each variant to be a compilable unit that accurately reflects the intended modification within the full context of the provided original code, preserving its overall structure.
+            * Ensure each variant is syntactically correct C++.
+            * Aim for diversity in the approaches for each variant if possible (e.g., algorithmic change, data structure optimization, loop restructuring, parallelization hints, use of different C++ features or library functions).
+            * Briefly explain the rationale behind each variant in a short comment before its code block if the change isn't obvious.
 
-        Output ONLY the strategy and the 3 delineated variants with their code. Do not include any other introductory or concluding remarks. 
+        Output ONLY the strategy and the 3 delineated variants with their code. Do not include any other introductory or concluding remarks.

@@ -31,9 +31,9 @@ Currently, the following agents are implemented:
 
 ### 4. Patcher Agent (`step/patcher/`)
 
--   **Purpose:** To apply a selected code variant (which is a full file content) to an original source file, saving it as a new file in a specified output directory.
--   **Functionality:** Takes the original file name, the full code of a selected variant, a variant ID, and an output directory. It then writes the variant's code to a new file, named using the original name and variant ID (e.g., `original_filename_Variant1.cpp`).
--   **Output:** Produces a YAML file confirming the `patched_file_path` and status.
+-   **Purpose:** To save all provided C++ code variants as separate source files.
+-   **Functionality:** Reads an input YAML (typically from the Replicator Agent) containing the `original_file_name` and a list of `modified_code_variants`. Each variant in the list should have a `variant_id` and the full `code` for that variant. The Patcher then creates a base output directory (defaults to `data/patched_variants/`) and, for each variant, creates a subdirectory named after a sanitized version of its `variant_id`. Inside this subdirectory, it saves the variant's `code` into a file named after the `original_file_name`.
+-   **Output:** Produces a YAML file that includes all input fields, along with `patcher_status` (e.g., 'all_success', 'partial_success', 'all_failed') and a `patched_variants_results` list. Each item in this list details the outcome for a specific variant, including its `variant_id`, the `patched_file_path` (if successful), and a `status` ('success' or 'failed') for the file writing operation.
 -   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/patcher/README.md`.
 
 ## Pipeline Workflow Example
@@ -43,7 +43,7 @@ These agents are designed to work in a sequence. A common workflow would be:
 1.  **Run the Profiler Agent:** Provide it with an input YAML specifying the C++ source directory and other options. It outputs profiling results (`profiler_output.yaml`) structured for the Analyzer.
     ```bash
     # Example assumes input config is in step/profiler/examples/profiler_input_example.yaml
-    poetry run python -m step.profiler.profiler_agent step/profiler/examples/profiler_input_example.yaml -o step/profiler/examples/profiler_output.yaml
+    poetry run python -m step.profiler.profiler_agent step/profiler/examples/profiler_input.yaml -o step/profiler/examples/profiler_output.yaml
     ```
 2.  **Run the Analyzer Agent:** Use the output from the Profiler (`profiler_output.yaml`) as the input for the Analyzer. It outputs an analysis YAML (`analyzer_output.yaml`).
     ```bash
@@ -56,7 +56,7 @@ These agents are designed to work in a sequence. A common workflow would be:
     ```
 4.  **Run the Patcher Agent:** If you want to save one of the `Replicator`'s variants to a new file, prepare an input YAML for the Patcher (or orchestrate it programmatically) using data from the Replicator's output and the original source details. 
     ```bash
-    poetry run python -m step.patcher.patcher_agent step/patcher/examples/patcher_input_example.yaml -o step/patcher/examples/patcher_output_example.yaml
+    poetry run python -m step.patcher.patcher_agent step/patcher/examples/patcher_input.yaml -o step/patcher/examples/patcher_output.yaml
     ```
 
 This pipeline allows for an automated flow from performance data collection and analysis to the generation of potential code optimizations and their application to new files.
