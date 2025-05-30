@@ -244,3 +244,4 @@ modified_code_variants:
 
         return 0;
     }
+original_file_name: heavy_computation.cpp

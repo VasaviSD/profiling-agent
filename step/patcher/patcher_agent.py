@@ -2,31 +2,50 @@
 # See LICENSE for details
 
 import os
+import re # For sanitizing directory names
+import copy # For deep copying input data
 from core.step import Step
+import time
 # Assuming core.utils has write_yaml, read_yaml if this agent needs to process YAMLs directly
 # For this simple version, it mainly writes source code files.
 
 class Patcher(Step):
+    DEFAULT_OUTPUT_BASE_DIR = "data/sources/patched_variants"
     """
-    Applies a selected code variant to an original source file, saving it as a new file.
-
-    This agent assumes the provided 'selected_variant_code' is the complete, 
-    modified content for the new source file.
+    Applies all code variants found in the input to an original source file, 
+    saving each variant as a new file in a dedicated subdirectory.
+    All input key-value pairs are persisted in the output YAML.
 
     Reads from (input YAML):
-      - original_source_code: str (Content of the original C++ source file)
-      - original_file_name: str (e.g., "main.cpp", used for naming the output file)
-      - selected_variant_code: str (The full C++ code of the chosen variant)
-      - variant_id: str (e.g., "Variant_1", for naming the output file)
-      - output_base_dir: str (Base directory to save the patched file, e.g., "data/sources/patched_variants")
-      # Optional, for context, but not directly used if variant code is full content:
-      # - proposed_fix_strategy: str (Textual description of the fix strategy)
+      - source_code: str (Content of the original C++ source file, for context, not directly used for patching if variants are full code)
+      - modified_code_variants: list 
+        - A list of dictionaries, where each dictionary represents a code variant and must contain:
+          - variant_id: str (e.g., "Variant_1", used for naming the output subdirectory)
+          - code: str (The full C++ code of that variant)
+      - original_file_name: str (e.g., "main.cpp", used as the filename for each patched variant)
+      # Other fields from Replicator output (like perf_command, analysis, etc.) may be present but are ignored by Patcher.
 
     Emits (output YAML):
-      - patched_file_path: str (Full path to the newly created patched source file)
-      - patcher_status: str ('success' or 'failed')
-      - patcher_error (optional): str (Error message if patching failed)
+      - All key-value pairs from the input YAML are preserved.
+      - patcher_status: str ('all_success', 'partial_success', or 'all_failed') (overwrites if present in input)
+      - patcher_overall_error (optional): str (High-level error message if something fundamental failed) (overwrites if present in input)
+      - patched_variants_results: list (overwrites if present in input)
+        - A list of dictionaries, one for each attempted variant patch:
+          - variant_id: str
+          - patched_file_path: str (Full path to the newly created patched source file, if successful)
+          - status: str ('success' or 'failed')
+          - error: str (Error message if patching this specific variant failed, None if successful)
     """
+
+    def _sanitize_filename(self, filename):
+        """Sanitizes a string to be a valid filename."""
+        # Replace spaces with underscores
+        s = filename.replace(" ", "_")
+        # Remove characters that are not alphanumeric, underscore, hyphen, or dot
+        s = re.sub(r'(?u)[^\w\.\-]', '', s)
+        # Remove leading/trailing underscores/hyphens/dots (dots usually not leading/trailing in filenames but good to be safe)
+        s = s.strip('_-. ')
+        return s if s else "default_variant_name"
 
     def setup(self):
         super().setup() # Handles basic Step setup like I/O files if used via CLI
@@ -35,93 +54,140 @@ class Patcher(Step):
         print("Patcher setup complete.")
 
     def run(self, data):
-        output_data = {
-            'patched_file_path': None,
-            'patcher_status': 'pending',
-            'patcher_error': None
-        }
+        # Start with a deep copy of input data to preserve all original fields
+        output_data = copy.deepcopy(data)
+
+        # Initialize/overwrite Patcher-specific output fields
+        output_data['patcher_status'] = 'pending'
+        output_data['patcher_overall_error'] = None
+        output_data['patched_variants_results'] = []
 
         try:
-            original_source_code = data.get('original_source_code') # Not directly used if variant is full new code, but good for context
+            _ = data.get('source_code') # Original source code, kept for context, not directly used in patching logic if variants are complete files.
+            modified_code_variants = data.get('modified_code_variants')
             original_file_name = data.get('original_file_name')
-            selected_variant_code = data.get('selected_variant_code')
-            variant_id = data.get('variant_id')
-            output_base_dir = data.get('output_base_dir')
 
-            if not all([original_file_name, selected_variant_code, variant_id, output_base_dir]):
-                missing = []
-                if not original_file_name: missing.append('original_file_name')
-                if not selected_variant_code: missing.append('selected_variant_code')
-                if not variant_id: missing.append('variant_id')
-                if not output_base_dir: missing.append('output_base_dir')
-                output_data['patcher_error'] = f"Missing required input fields: {', '.join(missing)}"
-                output_data['patcher_status'] = 'failed'
-                # self.error(output_data['patcher_error']) # If used via Step CLI
+            # Validate required top-level fields
+            missing_top_level = []
+            if not modified_code_variants: missing_top_level.append('modified_code_variants (list of variants)')
+            if not original_file_name: missing_top_level.append('original_file_name')
+
+            if missing_top_level:
+                output_data['patcher_overall_error'] = f"Missing required top-level input fields: {', '.join(missing_top_level)}"
+                output_data['patcher_status'] = 'all_failed'
                 return output_data
 
-            # Construct the output filename
-            name_part, ext_part = os.path.splitext(original_file_name)
-            new_filename = f"{name_part}_{variant_id}{ext_part}"
-            patched_file_path = os.path.join(output_base_dir, new_filename)
+            if not isinstance(modified_code_variants, list) or not modified_code_variants:
+                output_data['patcher_overall_error'] = "'modified_code_variants' must be a non-empty list."
+                output_data['patcher_status'] = 'all_failed'
+                return output_data
 
-            # Ensure output directory exists
-            if not os.path.exists(output_base_dir):
-                os.makedirs(output_base_dir)
-                print(f"Created output directory: {output_base_dir}")
-            
-            # Write the selected variant code to the new file
-            with open(patched_file_path, 'w') as f:
-                f.write(selected_variant_code)
-            
-            output_data['patched_file_path'] = os.path.abspath(patched_file_path)
-            output_data['patcher_status'] = 'success'
-            print(f"Successfully wrote patched file: {output_data['patched_file_path']}")
+            success_count = 0
+            failure_count = 0
 
-        except Exception as e:
-            error_msg = f"Error during Patcher execution: {e}"
-            print(error_msg)
+            for variant_data in modified_code_variants:
+                variant_result = {
+                    'variant_id': None,
+                    'patched_file_path': None,
+                    'status': 'pending',
+                    'error': None
+                }
+
+                if not isinstance(variant_data, dict):
+                    variant_result['error'] = "Variant data is not a dictionary."
+                    variant_result['status'] = 'failed'
+                    output_data['patched_variants_results'].append(variant_result)
+                    failure_count += 1
+                    continue
+
+                raw_variant_id = variant_data.get('variant_id')
+                selected_variant_code = variant_data.get('code')
+                
+                # Store the original variant_id for the results, sanitize for directory name
+                variant_result['variant_id'] = raw_variant_id if raw_variant_id else "UnknownVariant"
+                sanitized_variant_id_for_dir = self._sanitize_filename(raw_variant_id).lower() if raw_variant_id else "unknownvariantdir"
+
+                if not raw_variant_id or not selected_variant_code:
+                    missing_variant_fields = []
+                    if not raw_variant_id: missing_variant_fields.append('variant_id')
+                    if not selected_variant_code: missing_variant_fields.append('code')
+                    variant_result['error'] = f"Variant '{raw_variant_id or '(missing ID)'}' missing fields: {', '.join(missing_variant_fields)}"
+                    variant_result['status'] = 'failed'
+                    output_data['patched_variants_results'].append(variant_result)
+                    failure_count += 1
+                    continue
+                
+                try:
+                    variant_output_dir = os.path.join(self.DEFAULT_OUTPUT_BASE_DIR, sanitized_variant_id_for_dir)
+                    if not os.path.exists(variant_output_dir):
+                        os.makedirs(variant_output_dir)
+                        print(f"Created output directory: {variant_output_dir} for variant '{raw_variant_id}'")
+
+                    # Sanitize original_file_name as well before joining path, just in case
+                    safe_original_file_name = self._sanitize_filename(original_file_name)
+                    if not safe_original_file_name:
+                        raise ValueError("Original file name is empty or invalid after sanitization.")
+
+                    patched_file_path = os.path.join(variant_output_dir, safe_original_file_name)
+                    
+                    with open(patched_file_path, 'w') as f:
+                        f.write(selected_variant_code)
+                    
+                    variant_result['patched_file_path'] = os.path.abspath(patched_file_path)
+                    variant_result['status'] = 'success'
+                    print(f"Successfully wrote patched file for {raw_variant_id}: {variant_result['patched_file_path']}")
+                    success_count += 1
+                except Exception as e_variant:
+                    error_msg_variant = f"Error patching variant {raw_variant_id}: {e_variant}"
+                    print(error_msg_variant)
+                    variant_result['error'] = error_msg_variant
+                    variant_result['status'] = 'failed'
+                    failure_count += 1
+                
+                output_data['patched_variants_results'].append(variant_result)
+
+            if success_count > 0 and failure_count == 0:
+                output_data['patcher_status'] = 'all_success'
+            elif success_count > 0 and failure_count > 0:
+                output_data['patcher_status'] = 'partial_success'
+            elif success_count == 0 and failure_count > 0:
+                output_data['patcher_status'] = 'all_failed'
+            else: # Should not happen if modified_code_variants is non-empty
+                output_data['patcher_status'] = 'all_failed' 
+                output_data['patcher_overall_error'] = 'No variants processed or unexpected state.'
+
+        except Exception as e_global:
+            error_msg_global = f"Critical error during Patcher execution: {e_global}"
+            print(error_msg_global)
             import traceback
             traceback.print_exc()            
-            output_data['patcher_error'] = error_msg
-            output_data['patcher_status'] = 'failed'
-            # self.error(error_msg) # If used via Step CLI
+            # Ensure Patcher-specific fields are present even in critical error cases if initialized from deepcopy
+            output_data['patcher_overall_error'] = output_data.get('patcher_overall_error', error_msg_global) 
+            output_data['patcher_status'] = output_data.get('patcher_status', 'all_failed')
+            if 'patched_variants_results' not in output_data:
+                output_data['patched_variants_results'] = []
         
         return output_data
 
 if __name__ == '__main__': # pragma: no cover
-    # This agent is typically orchestrated. For direct testing:
     patcher = Patcher()
+    try:
+        patcher.parse_arguments()
+        setup_start_time = time.time()
+        patcher.setup()
+        setup_end_time = time.time()
+        print(f"TIME: setup duration: {(setup_end_time-setup_start_time):.4f} seconds")
+        
+        step_start_time = time.time()
+        patcher.step()
+        step_end_time = time.time()
+        print(f"TIME: step duration: {(step_end_time-step_start_time):.4f} seconds")
+    except (ValueError, RuntimeError, FileNotFoundError) as e:
+        print(f"ERROR during Patcher execution (Setup/Config/File Error): {e}")
+        import traceback
+        traceback.print_exc()
+    except Exception as e:
+        print(f"ERROR during Patcher execution (Unexpected Error): {e}")
+        import traceback
+        traceback.print_exc()
     
-    # For the direct run test below, we need to satisfy Step's setup requirements.
-    # We are not using parse_arguments() here, so set_io() is needed.
-    # Since we are testing run() directly and not the full step() output mechanism,
-    # the specific output file for this set_io call is mostly a placeholder.
-    dummy_input_for_set_io = './dummy_patcher_input.yaml' # Could be non-existent for this test type
-    dummy_output_for_set_io = './dummy_patcher_output.yaml' 
-    patcher.set_io(dummy_input_for_set_io, dummy_output_for_set_io)
-    # patcher.parse_arguments() # Or patcher.set_io(...) for programmatic CLI-like use
-    patcher.setup() # Call setup for completeness, and to satisfy Step base class
-    # output = patcher.step()
-    # print("Patcher output from step():", output)
-
-    # 2. Direct run test
-    print("--- Direct Patcher Run Test ---")
-    test_input_data = {
-        'original_source_code': '#include <iostream>\nint main() { std::cout << "Hello, Original World!" << std::endl; return 0; }',
-        'original_file_name': 'original_main.cpp',
-        'selected_variant_code': '#include <iostream>\nint main() { std::cout << "Hello, Patched World! Variant Alpha!" << std::endl; return 0; }',
-        'variant_id': 'Alpha',
-        'output_base_dir': './data/test_patched_output'
-    }
-    # patcher.setup() # Setup is now called above after set_io
-    result = patcher.run(test_input_data)
-    print("Patcher run() result:", result)
-
-    if result.get('patcher_status') == 'success' and result.get('patched_file_path'):
-        print(f"Patched file created at: {result['patched_file_path']}")
-        # You can verify the content of the file here
-        # os.remove(result['patched_file_path']) # Clean up if desired
-        # if os.path.exists(test_input_data['output_base_dir']) and not os.listdir(test_input_data['output_base_dir']):
-        #     os.rmdir(test_input_data['output_base_dir'])
-    elif result.get('patcher_error'):
-        print(f"Patcher test failed with error: {result['patcher_error']}") 
