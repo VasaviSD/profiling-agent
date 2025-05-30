@@ -48,7 +48,7 @@ python -m pipe.optimizer.optimizer --input-dir <path_to_cpp_source_directory> --
 ```bash
 # Ensure you are in the root directory of the profiling-agent project
 poetry run python -m pipe.optimizer.optimizer \
-    --input-dir examples/cpp_sources/ \
+    --input-dir data/sources/ \
     --output-dir ./optimizer_run_1 \
     --iterations 1
 ```
