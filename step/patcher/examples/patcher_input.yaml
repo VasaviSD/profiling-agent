@@ -1,0 +1,246 @@
+source_code: |
+  #include <iostream>
+  #include <vector>
+  #include <chrono>
+
+  // Function with a heavy computation load
+  double perform_heavy_computation(int size) {
+      double result = 0.0;
+      for (int i = 0; i < size; ++i) {
+          for (int j = 0; j < size; ++j) {
+              for (int k = 0; k < 100; ++k) { // Inner loop to make it more intensive
+                  result += static_cast<double>(i * j * k) / (size + 1.0);
+                  if (static_cast<int>(result) % 100000 == 0) { // Some condition to prevent over-optimization
+                      result -= 5.0;
+                  }
+              }
+          }
+      }
+      return result;
+  }
+
+  int main() {
+      std::cout << "Starting heavy computation test..." << std::endl;
+      auto start_time = std::chrono::high_resolution_clock::now();
+
+      double final_result = perform_heavy_computation(500); // Adjust size for desired load
+
+      auto end_time = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+
+      std::cout << "Heavy computation finished." << std::endl;
+      std::cout << "Final result: " << final_result << std::endl;
+      std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
+
+      return 0;
+  } 
+perf_command: perf record -g -F 99 -o perf.data -- cpp_file
+perf_report_output: |
+  # Children      Self  Command          Shared Object         Symbol                            
+  # ........  ........  ...............  ....................  ..................................
+  #
+      95.23%     0.00%  perf_target_com  perf_target_compiled  [.] _start
+              |
+              ---_start
+                __libc_start_main@@GLIBC_2.34
+                __libc_start_call_main
+                main
+                perform_heavy_computation(int)
+
+      95.23%     0.00%  perf_target_com  libc.so.6             [.] __libc_start_main@@GLIBC_2.34
+              |
+              ---__libc_start_main@@GLIBC_2.34
+                __libc_start_call_main
+                main
+                perform_heavy_computation(int)
+
+      95.23%     0.00%  perf_target_com  libc.so.6             [.] __libc_start_call_main
+              |
+              ---__libc_start_call_main
+                main
+                perform_heavy_computation(int)
+
+      95.23%     0.00%  perf_target_com  perf_target_compiled  [.] main
+              |
+              ---main
+                perform_heavy_computation(int)
+
+      95.23%    95.21%  perf_target_com  perf_target_compiled  [.] perform_heavy_computation(int)
+              |          
+              --95.21%--_start
+                        __libc_start_main@@GLIBC_2.34
+                        __libc_start_call_main
+                        main
+                        perform_heavy_computation(int)
+threshold: 10
+context: 2
+bottleneck_location: '`perform_heavy_computation` function in the source file.'
+bottleneck_type: 95.21% of CPU samples.
+analysis_hypothesis: Heavy computation in nested loops with potentially inefficient
+  data access patterns.
+performance_analysis: |-
+  - **Bottleneck 1**
+    - **Location:** `perform_heavy_computation` function in the source file.
+    - **Metric/Impact:** 95.21% of CPU samples.
+    - **Likely Cause:** Heavy computation in nested loops with potentially inefficient data access patterns.
+    ```cpp
+      for (int i = 0; i < size; ++i) {
+          for (int j = 0; j < size; ++j) {
+              for (int k = 0; k < 100; ++k) {
+    ```
+
+  - **Bottleneck 2**
+    - **Location:** `_start` function.
+    - **Metric/Impact:** 95.23% of total samples.
+    - **Likely Cause:** High overhead at program start-up or system call processing.
+    ```cpp
+      auto start_time = std::chrono::high_resolution_clock::now();
+    ```
+
+  - **Bottleneck 3**
+    - **Location:** `main` function.
+    - **Metric/Impact:** 95.23% of total samples.
+    - **Likely Cause:** Overhead in program initialization or wrapping of `main` function.
+    ```cpp
+      std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+    ```
+cost: 0.0446035
+tokens: 3343
+proposed_fix_strategy: The main strategy to address the identified bottleneck involves
+  optimizing the nested loop computations. Given the heavy computation is primarily
+  CPU-bound, focusing on reducing the number of iterations, improving cache locality,
+  and utilizing modern CPU features like parallelism can offer significant performance
+  gains. The first approach will aim to reduce the computational complexity by reorganizing
+  and minimizing redundant calculations. The second will involve introducing parallel
+  processing to leverage multi-core processors commonly available in modern systems.
+  The third strategy will focus on further optimizing data access patterns and computations
+  to enhance cache efficiency and reduce unnecessary operations.
+modified_code_variants:
+- variant_id: Variant 1
+  explanation: No explicit explanation provided.
+  code: |-
+    #include <iostream>
+    #include <vector>
+    #include <chrono>
+
+    // Optimized by reducing redundant calculations
+    double perform_heavy_computation(int size) {
+        double result = 0.0;
+        double sizePlusOne = size + 1.0; // Avoid repeated calculation
+        for (int i = 0; i < size; ++i) {
+            for (int j = 0; j < size; ++j) {
+                double precomputedValue = static_cast<double>(i * j) / sizePlusOne;
+                for (int k = 0; k < 100; ++k) {
+                    result += precomputedValue * k;
+                    if (static_cast<int>(result) % 100000 == 0) {
+                        result -= 5.0;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    int main() {
+        std::cout << "Starting heavy computation test..." << std::endl;
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+        double final_result = perform_heavy_computation(500);
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+
+        std::cout << "Heavy computation finished." << std::endl;
+        std::cout << "Final result: " << final_result << std::endl;
+        std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
+
+        return 0;
+    }
+- variant_id: Variant 2
+  explanation: No explicit explanation provided.
+  code: |-
+    #include <iostream>
+    #include <vector>
+    #include <chrono>
+    #include <execution>
+
+    // Utilizing parallel algorithms for heavy computation
+    double perform_heavy_computation(int size) {
+        std::vector<double> results(size * size * 100);
+        std::for_each(std::execution::par, results.begin(), results.end(), [size, &results](double& result) {
+            int index = &result - &results[0];
+            int i = index / (size * 100);
+            int j = (index % (size * 100)) / 100;
+            int k = index % 100;
+            double tempResult = static_cast<double>(i * j * k) / (size + 1.0);
+            result = tempResult;
+            if (static_cast<int>(tempResult) % 100000 == 0) {
+                result -= 5.0;
+            }
+        });
+
+        double finalResult = 0.0;
+        for (auto& result : results) {
+            finalResult += result;
+        }
+        return finalResult;
+    }
+
+    int main() {
+        std::cout << "Starting heavy computation test..." << std::endl;
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+        double final_result = perform_heavy_computation(500);
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+
+        std::cout << "Heavy computation finished." << std::endl;
+        std::cout << "Final result: " << final_result << std::endl;
+        std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
+
+        return 0;
+    }
+- variant_id: Variant 3
+  explanation: No explicit explanation provided.
+  code: |-
+    #include <iostream>
+    #include <vector>
+    #include <chrono>
+
+    // Further optimized by minimizing operations within the innermost loop
+    double perform_heavy_computation(int size) {
+        double result = 0.0;
+        double correctionFactor = 0.0;
+        double sizePlusOne = size + 1.0;
+        for (int i = 0; i < size; ++i) {
+            for (int j = 0; j < size; ++j) {
+                double ijProduct = static_cast<double>(i * j);
+                for (int k = 0; k < 100; ++k) {
+                    result += ijProduct * k / sizePlusOne;
+                    // Accumulate corrections in a separate variable to reduce the frequency of conditional checks
+                    if (k == 99 && static_cast<int>(result) % 100000 == 0) {
+                        correctionFactor -= 5.0;
+                    }
+                }
+            }
+        }
+        result += correctionFactor;
+        return result;
+    }
+
+    int main() {
+        std::cout << "Starting heavy computation test..." << std::endl;
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+        double final_result = perform_heavy_computation(500);
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+
+        std::cout << "Heavy computation finished." << std::endl;
+        std::cout << "Final result: " << final_result << std::endl;
+        std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
+
+        return 0;
+    }
