@@ -10,7 +10,7 @@ import time
 # For this simple version, it mainly writes source code files.
 
 class Patcher(Step):
-    DEFAULT_OUTPUT_BASE_DIR = "data/sources/patched_variants"
+    DEFAULT_OUTPUT_BASE_DIR = "data/patched_variants"
     """
     Applies all code variants found in the input to an original source file, 
     saving each variant as a new file in a dedicated subdirectory.
