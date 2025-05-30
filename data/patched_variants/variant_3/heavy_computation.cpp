@@ -2,22 +2,38 @@
 #include <vector>
 #include <chrono>
 
-// Use formula for sum of k: sum_{k=0}^{99} k = 99*100/2 = 4950
-// Replace branch with branchless conditional subtraction.
+// Precompute sum of k to eliminate innermost loop
 double perform_heavy_computation(int size) {
-    double denom = size + 1.0;
     double result = 0.0;
-    const int k_sum = 4950; // sum of 0..99
+    const double divisor = size + 1.0;
+
+    // sum of k from 0 to 99 = 99*100/2 = 4950
+    const int k_sum = 4950;
 
     for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-            double temp = static_cast<double>(i * j) / denom;
-            result += temp * k_sum;
-
-            // Branchless subtraction if condition met
-            int cond = (static_cast<int>(result) % 100000 == 0);
-            result -= 5.0 * cond;
+            double base_val = static_cast<double>(i * j) / divisor;
+            result += base_val * k_sum;
+            if (static_cast<int>(result) % 100000 == 0) {
+                result -= 5.0;
+            }
         }
     }
     return result;
+}
+
+int main() {
+    std::cout << "Starting heavy computation test..." << std::endl;
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    double final_result = perform_heavy_computation(500);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+
+    std::cout << "Heavy computation finished." << std::endl;
+    std::cout << "Final result: " << final_result << std::endl;
+    std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
+
+    return 0;
 }
