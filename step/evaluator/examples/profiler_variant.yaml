@@ -1,0 +1,885 @@
+source_code: |-
+  // --- Source: heavy_computation.cpp ---// --- Source: heavy_computation.cpp ---
+  #include <iostream>
+  #include <vector>
+  #include <chrono>
+  #include <thread>
+  #include <atomic>
+  #include <cmath>
+
+  double perform_heavy_computation_worker(int size, int start_i, int end_i, std::atomic<double>& result_atomic) {
+      double local_result = 0.0;
+      const double denom = size + 1.0;
+
+      for (int i = start_i; i < end_i; ++i) {
+          double i_over_denom = static_cast<double>(i) / denom;
+          for (int j = 0; j < size; ++j) {
+              double base = i_over_denom * j;
+              double partial_sum = 0.0;
+              for (int k = 0; k < 100; ++k) {
+                  partial_sum += base * k;
+              }
+              local_result += partial_sum;
+
+              if (static_cast<int>(local_result) % 100000 == 0) {
+                  local_result -= 5.0;
+              }
+          }
+      }
+      // Atomically add local result to shared result
+      double expected = result_atomic.load(std::memory_order_relaxed);
+      double desired;
+      do {
+          desired = expected + local_result;
+      } while (!result_atomic.compare_exchange_weak(expected, desired, std::memory_order_release, std::memory_order_relaxed));
+      return local_result;
+  }
+
+  double perform_heavy_computation(int size) {
+      const int num_threads = std::thread::hardware_concurrency();
+      if (num_threads <= 1) {
+          // Fallback to single-threaded if hardware_concurrency not detected
+          std::atomic<double> result_atomic(0.0);
+          perform_heavy_computation_worker(size, 0, size, result_atomic);
+          return result_atomic.load();
+      }
+
+      std::atomic<double> result_atomic(0.0);
+      std::vector<std::thread> threads;
+      int chunk_size = size / num_threads;
+      int remainder = size % num_threads;
+
+      int start = 0;
+      for (int t = 0; t < num_threads; ++t) {
+          int end = start + chunk_size + (t < remainder ? 1 : 0);
+          threads.emplace_back(perform_heavy_computation_worker, size, start, end, std::ref(result_atomic));
+          start = end;
+      }
+
+      for (auto& th : threads) {
+          th.join();
+      }
+
+      return result_atomic.load();
+  }
+
+  int main() {
+      std::cout << "Starting heavy computation test..." << std::endl;
+      auto start_time = std::chrono::high_resolution_clock::now();
+
+      double final_result = perform_heavy_computation(500); // Adjust size for desired load
+
+      auto end_time = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+
+      std::cout << "Heavy computation finished." << std::endl;
+      std::cout << "Final result: " << final_result << std::endl;
+      std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
+
+      return 0;
+  }
+perf_command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+  -- /home/vasavi/profiling-agent/data/compile/a.out_opt_only '
+perf_report_output: |-
+  # To display the perf.data header info, please use --header/--header-only options.
+  #
+  #
+  # Total Lost Samples: 0
+  #
+  # Samples: 27  of event 'cycles:P'
+  # Event count (approx.): 1423205395
+  #
+  # Children      Self  Command         Shared Object         Symbol                                                                                                                                                                                                                                                              
+  # ........  ........  ..............  ....................  ....................................................................................................................................................................................................................................................................
+  #
+      97.95%     0.00%  a.out_opt_only  libc.so.6             [.] clone3
+              |
+              ---clone3
+                 start_thread
+                 |          
+                 |--96.78%--0x7af5556ecdb3
+                 |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                 |          
+                  --1.16%--name_stack_maps
+
+      97.95%     0.00%  a.out_opt_only  libc.so.6             [.] start_thread
+              |
+              ---start_thread
+                 |          
+                 |--96.78%--0x7af5556ecdb3
+                 |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                 |          
+                  --1.16%--name_stack_maps
+
+      96.78%    96.78%  a.out_opt_only  a.out_opt_only        [.] perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+              |
+              ---clone3
+                 start_thread
+                 0x7af5556ecdb3
+                 perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+      96.78%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] 0x00007af5556ecdb3
+              |
+              ---0x7af5556ecdb3
+                 perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+       1.21%     0.00%  a.out_opt_only  a.out_opt_only        [.] _start
+              |
+              ---_start
+                 __libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 |          
+                  --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                            std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                            0x7af55570d284
+                            _dl_runtime_resolve_xsavec
+
+       1.21%     0.00%  a.out_opt_only  libc.so.6             [.] __libc_start_main_impl (inlined)
+              |
+              ---__libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 |          
+                  --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                            std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                            0x7af55570d284
+                            _dl_runtime_resolve_xsavec
+
+       1.21%     0.00%  a.out_opt_only  libc.so.6             [.] __libc_start_call_main
+              |
+              ---__libc_start_call_main
+                 main
+                 |          
+                  --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                            std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                            0x7af55570d284
+                            _dl_runtime_resolve_xsavec
+
+       1.21%     0.00%  a.out_opt_only  a.out_opt_only        [.] main
+              |
+              ---main
+                 |          
+                  --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                            std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                            0x7af55570d284
+                            _dl_runtime_resolve_xsavec
+
+       1.20%     1.20%  a.out_opt_only  ld-linux-x86-64.so.2  [.] _dl_runtime_resolve_xsavec
+              |
+              ---_start
+                 __libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 std::ostream& std::ostream::_M_insert<double>(double)
+                 std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                 0x7af55570d284
+                 _dl_runtime_resolve_xsavec
+
+       1.20%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] std::ostream& std::ostream::_M_insert<double>(double)
+              |
+              ---std::ostream& std::ostream::_M_insert<double>(double)
+                 std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                 0x7af55570d284
+                 _dl_runtime_resolve_xsavec
+
+       1.20%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+              |
+              ---std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                 0x7af55570d284
+                 _dl_runtime_resolve_xsavec
+
+       1.20%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] 0x00007af55570d284
+              |
+              ---0x7af55570d284
+                 _dl_runtime_resolve_xsavec
+
+       1.16%     1.16%  a.out_opt_only  libc.so.6             [.] name_stack_maps
+              |
+              ---clone3
+                 start_thread
+                 name_stack_maps
+profiler_error:
+profiling_details:
+  debug_opt:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_debug_opt
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_debug_opt '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.227 MB /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data (28 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 28  of event 'cycles:P'
+        # Event count (approx.): 2066029006
+        #
+        # Children      Self  Command          Shared Object        Symbol                                                                   
+        # ........  ........  ...............  ...................  .........................................................................
+        #
+            97.25%     0.00%  a.out_debug_opt  libc.so.6            [.] clone3
+                    |
+                    ---clone3
+                       start_thread
+                       |          
+                       |--68.29%--0x7cda29aecdb3
+                       |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                       |          
+                       |--28.14%--0x7cda29aecdbc
+                       |          __GI___libc_free (inlined)
+                       |          tcache_init (inlined)
+                       |          tcache_init (inlined)
+                       |          arena_get2 (inlined)
+                       |          arena_get2 (inlined)
+                       |          _int_new_arena (inlined)
+                       |          new_heap (inlined)
+                       |          alloc_new_heap
+                       |          __GI___mmap64 (inlined)
+                       |          __GI___mmap64 (inlined)
+                       |          0xffffffffbd800130
+                       |          0xffffffffbd62601f
+                       |          0xffffffffbc407783
+                       |          0xffffffffbc45f7a3
+                       |          0xffffffffbc82c93a
+                       |          0xffffffffbc7f18e3
+                       |          0xffffffffbc830476
+                       |          0xffffffffbc82a6cc
+                       |          0xffffffffbc8a3c72
+                       |          0xffffffffbc45fc4f
+                       |          0xffffffffbc82cf63
+                       |          0xffffffffbd596312
+                       |          0xffffffffbd588e05
+                       |          
+                        --0.81%--name_stack_maps
+
+            97.25%     0.00%  a.out_debug_opt  libc.so.6            [.] start_thread
+                    |
+                    ---start_thread
+                       |          
+                       |--68.29%--0x7cda29aecdb3
+                       |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                       |          
+                       |--28.14%--0x7cda29aecdbc
+                       |          __GI___libc_free (inlined)
+                       |          tcache_init (inlined)
+                       |          tcache_init (inlined)
+                       |          arena_get2 (inlined)
+                       |          arena_get2 (inlined)
+                       |          _int_new_arena (inlined)
+                       |          new_heap (inlined)
+                       |          alloc_new_heap
+                       |          __GI___mmap64 (inlined)
+                       |          __GI___mmap64 (inlined)
+                       |          0xffffffffbd800130
+                       |          0xffffffffbd62601f
+                       |          0xffffffffbc407783
+                       |          0xffffffffbc45f7a3
+                       |          0xffffffffbc82c93a
+                       |          0xffffffffbc7f18e3
+                       |          0xffffffffbc830476
+                       |          0xffffffffbc82a6cc
+                       |          0xffffffffbc8a3c72
+                       |          0xffffffffbc45fc4f
+                       |          0xffffffffbc82cf63
+                       |          0xffffffffbd596312
+                       |          0xffffffffbd588e05
+                       |          
+                        --0.81%--name_stack_maps
+
+            68.29%    68.29%  a.out_debug_opt  a.out_debug_opt      [.] perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                    |
+                    ---clone3
+                       start_thread
+                       0x7cda29aecdb3
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            68.29%     0.00%  a.out_debug_opt  libstdc++.so.6.0.33  [.] 0x00007cda29aecdb3
+                    |
+                    ---0x7cda29aecdb3
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            29.60%     0.00%  a.out_debug_opt  [unknown]            [k] 0xffffffffbd800130
+                    |
+                    ---0xffffffffbd800130
+                       0xffffffffbd62601f
+                       |          
+                       |--28.14%--0xffffffffbc407783
+                       |          0xffffffffbc45f7a3
+                       |          0xffffffffbc82c93a
+                       |          0xffffffffbc7f18e3
+                       |          0xffffffffbc830476
+                       |          0xffffffffbc82a6cc
+                       |          0xffffffffbc8a3c72
+                       |          0xffffffffbc45fc4f
+                       |          0xffffffffbc82cf63
+                       |          0xffffffffbd596312
+                       |          0xffffffffbd588e05
+                       |          
+                       |--0.83%--0xffffffffbc406ee6
+                       |          0xffffffffbc8f12c7
+                       |          0xffffffffbc8f0f68
+                       |          0xffffffffbc8eef16
+                       |          0xffffffffbc8eee10
+                       |          0xffffffffbc8eeb09
+                       |          0xffffffffbc8ee577
+                       |          0xffffffffbc9815c7
+                       |          0xffffffffbc8ef320
+                       |          0xffffffffbc8ee099
+                       |          0xffffffffbc835077
+                       |          
+                        --0.63%--0xffffffffbc4071a7
+                                  0xffffffffbc62302a
+                                  0xffffffffbc622765
+                                  0xffffffffbc626a94
+                                  0xffffffffbc626995
+                                  0xffffffffbc6261b4
+                                  0xffffffffbd63de13
+                                  |          
+                                   --0.63%--0xffffffffbd63daa9
+
+            29.60%     0.00%  a.out_debug_opt  [unknown]            [k] 0xffffffffbd62601f
+                    |
+                    ---0xffffffffbd62601f
+                       |          
+                       |--28.14%--0xffffffffbc407783
+                       |          0xffffffffbc45f7a3
+                       |          0xffffffffbc82c93a
+                       |          0xffffffffbc7f18e3
+                       |          0xffffffffbc830476
+                       |          0xffffffffbc82a6cc
+                       |          0xffffffffbc8a3c72
+                       |          0xffffffffbc45fc4f
+                       |          0xffffffffbc82cf63
+                       |          0xffffffffbd596312
+                       |          0xffffffffbd588e05
+                       |          
+                       |--0.83%--0xffffffffbc406ee6
+                       |          0xffffffffbc8f12c7
+                       |          0xffffffffbc8f0f68
+                       |          0xffffffffbc8eef16
+                       |          0xffffffffbc8eee10
+                       |          0xffffffffbc8eeb09
+                       |          0xffffffffbc8ee577
+                       |          0xffffffffbc9815c7
+                       |          0xffffffffbc8ef320
+                       |          0xffffffffbc8ee099
+                       |          0xffffffffbc835077
+                       |          
+                        --0.63%--0xffffffffbc4071a7
+                                  0xffffffffbc62302a
+                                  0xffffffffbc622765
+                                  0xffffffffbc626a94
+                                  0xffffffffbc626995
+                                  0xffffffffbc6261b4
+                                  0xffffffffbd63de13
+                                  |          
+                                   --0.63%--0xffffffffbd63daa9
+
+            28.14%    28.14%  a.out_debug_opt  [unknown]            [k] 0xffffffffbd588e02
+                    |
+                    ---clone3
+                       start_thread
+                       0x7cda29aecdbc
+                       __GI___libc_free (inlined)
+                       tcache_init (inlined)
+                       tcache_init (inlined)
+                       arena_get2 (inlined)
+                       arena_get2 (inlined)
+                       _int_new_arena (inlined)
+                       new_heap (inlined)
+                       alloc_new_heap
+                       __GI___mmap64 (inlined)
+                       __GI___mmap64 (inlined)
+                       0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc407783
+                       0xffffffffbc45f7a3
+                       0xffffffffbc82c93a
+                       0xffffffffbc7f18e3
+                       0xffffffffbc830476
+                       0xffffffffbc82a6cc
+                       0xffffffffbc8a3c72
+                       0xffffffffbc45fc4f
+                       0xffffffffbc82cf63
+                       0xffffffffbd596312
+                       0xffffffffbd588e05
+
+            28.14%     0.00%  a.out_debug_opt  libstdc++.so.6.0.33  [.] 0x00007cda29aecdbc
+                    |
+                    ---0x7cda29aecdbc
+                       __GI___libc_free (inlined)
+                       tcache_init (inlined)
+                       tcache_init (inlined)
+                       arena_get2 (inlined)
+                       arena_get2 (inlined)
+                       _int_new_arena (inlined)
+                       new_heap (inlined)
+                       alloc_new_heap
+                       __GI___mmap64 (inlined)
+                       __GI___mmap64 (inlined)
+                       0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc407783
+                       0xffffffffbc45f7a3
+                       0xffffffffbc82c93a
+                       0xffffffffbc7f18e3
+                       0xffffffffbc830476
+                       0xffffffffbc82a6cc
+                       0xffffffffbc8a3c72
+                       0xffffffffbc45fc4f
+                       0xffffffffbc82cf63
+                       0xffffffffbd596312
+                       0xffffffffbd588e05
+
+            28.14%     0.00%  a.out_debug_opt  libc.so.6            [.] __GI___libc_free (inlined)
+                    |
+                    ---__GI___libc_free (inlined)
+                       tcache_init (inlined)
+                       tcache_init (inlined)
+                       arena_get2 (inlined)
+                       arena_get2 (inlined)
+                       _int_new_arena (inlined)
+                       new_heap (inlined)
+                       alloc_new_heap
+                       __GI___mmap64 (inlined)
+                       __GI___mmap64 (inlined)
+                       0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc407783
+                       0xffffffffbc45f7a3
+                       0xffffffffbc82c93a
+                       0xffffffffbc7f18e3
+                       0xffffffffbc830476
+                       0xffffffffbc82a6cc
+                       0xffffffffbc8a3c72
+                       0xffffffffbc45fc4f
+                       0xffffffffbc82cf63
+                       0xffffffffbd596312
+                       0xffffffffbd588e05
+
+            28.14%     0.00%  a.out_debug_opt  libc.so.6            [.] tcache_init (inlined)
+                    |
+                    ---tcache_init (inlined)
+                       tcache_init (inlined)
+                       arena_get2 (inlined)
+                       arena_get2 (inlined)
+                       _int_new_arena (inlined)
+                       new_heap (inlined)
+                       alloc_new_heap
+                       __GI___mmap64 (inlined)
+                       __GI___mmap64 (inlined)
+                       0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc407783
+                       0xffffffffbc45f7a3
+                       0xffffffffbc82c93a
+                       0xffffffffbc7f18e3
+                       0xffffffffbc830476
+                       0xffffffffbc82a6cc
+                       0xffffffffbc8a3c72
+                       0xffffffffbc45fc4f
+                       0xffffffffbc82cf63
+                       0xffffffffbd596312
+                       0xffffffffbd588e05
+
+            28.14%     0.00%  a.out_debug_opt  libc.so.6            [.] tcache_init (inlined)
+                    |
+                    ---tcache_init (inlined)
+                       arena_get2 (inlined)
+                       arena_get2 (inlined)
+                       _int_new_arena (inlined)
+                       new_heap (inlined)
+                       alloc_new_heap
+                       __GI___mmap64 (inlined)
+                       __GI___mmap64 (inlined)
+                       0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc407783
+                       0xffffffffbc45f7a3
+                       0xffffffffbc82c93a
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''
+  opt_only:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_opt_only
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_opt_only '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.226 MB /home/vasavi/profiling-agent/data/perf/perf_opt_only.data (27 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 27  of event 'cycles:P'
+        # Event count (approx.): 1423205395
+        #
+        # Children      Self  Command         Shared Object         Symbol                                                                                                                                                                                                                                                              
+        # ........  ........  ..............  ....................  ....................................................................................................................................................................................................................................................................
+        #
+            97.95%     0.00%  a.out_opt_only  libc.so.6             [.] clone3
+                    |
+                    ---clone3
+                       start_thread
+                       |          
+                       |--96.78%--0x7af5556ecdb3
+                       |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                       |          
+                        --1.16%--name_stack_maps
+
+            97.95%     0.00%  a.out_opt_only  libc.so.6             [.] start_thread
+                    |
+                    ---start_thread
+                       |          
+                       |--96.78%--0x7af5556ecdb3
+                       |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                       |          
+                        --1.16%--name_stack_maps
+
+            96.78%    96.78%  a.out_opt_only  a.out_opt_only        [.] perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                    |
+                    ---clone3
+                       start_thread
+                       0x7af5556ecdb3
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            96.78%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] 0x00007af5556ecdb3
+                    |
+                    ---0x7af5556ecdb3
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+             1.21%     0.00%  a.out_opt_only  a.out_opt_only        [.] _start
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       |          
+                        --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                                  std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                                  0x7af55570d284
+                                  _dl_runtime_resolve_xsavec
+
+             1.21%     0.00%  a.out_opt_only  libc.so.6             [.] __libc_start_main_impl (inlined)
+                    |
+                    ---__libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       |          
+                        --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                                  std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                                  0x7af55570d284
+                                  _dl_runtime_resolve_xsavec
+
+             1.21%     0.00%  a.out_opt_only  libc.so.6             [.] __libc_start_call_main
+                    |
+                    ---__libc_start_call_main
+                       main
+                       |          
+                        --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                                  std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                                  0x7af55570d284
+                                  _dl_runtime_resolve_xsavec
+
+             1.21%     0.00%  a.out_opt_only  a.out_opt_only        [.] main
+                    |
+                    ---main
+                       |          
+                        --1.20%--std::ostream& std::ostream::_M_insert<double>(double)
+                                  std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                                  0x7af55570d284
+                                  _dl_runtime_resolve_xsavec
+
+             1.20%     1.20%  a.out_opt_only  ld-linux-x86-64.so.2  [.] _dl_runtime_resolve_xsavec
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       std::ostream& std::ostream::_M_insert<double>(double)
+                       std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                       0x7af55570d284
+                       _dl_runtime_resolve_xsavec
+
+             1.20%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] std::ostream& std::ostream::_M_insert<double>(double)
+                    |
+                    ---std::ostream& std::ostream::_M_insert<double>(double)
+                       std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                       0x7af55570d284
+                       _dl_runtime_resolve_xsavec
+
+             1.20%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                    |
+                    ---std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_float<double>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, char, double) const
+                       0x7af55570d284
+                       _dl_runtime_resolve_xsavec
+
+             1.20%     0.00%  a.out_opt_only  libstdc++.so.6.0.33   [.] 0x00007af55570d284
+                    |
+                    ---0x7af55570d284
+                       _dl_runtime_resolve_xsavec
+
+             1.16%     1.16%  a.out_opt_only  libc.so.6             [.] name_stack_maps
+                    |
+                    ---clone3
+                       start_thread
+                       name_stack_maps
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''
+  debug_only:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_debug_only
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_debug_only.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_debug_only '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_debug_only.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.202 MB /home/vasavi/profiling-agent/data/perf/perf_debug_only.data (24 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 24  of event 'cycles:P'
+        # Event count (approx.): 2467344230
+        #
+        # Children      Self  Command          Shared Object        Symbol                                                                                                                                                                                                                                                                                                                                                                                            
+        # ........  ........  ...............  ...................  ..................................................................................................................................................................................................................................................................................................................................................................................................
+        #
+            99.18%     0.00%  a.out_debug_onl  libc.so.6            [.] clone3
+                    |
+                    ---clone3
+                       start_thread
+                       |          
+                       |--98.52%--0x7f30efcecdb3
+                       |          std::thread::_State_impl<std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > > >::_M_run()
+                       |          std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::operator()()
+                       |          double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                       |          std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       |          double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                       |          
+                        --0.66%--name_stack_maps
+                                  __GI___snprintf
+                                  __vsnprintf_internal
+                                  __printf_buffer
+                                  __find_specmb (inlined)
+                                  __strchrnul_avx2
+                                  0xffffffffbd800bc7
+                                  0xffffffffbd62d6c3
+                                  0xffffffffbc4d2419
+                                  0xffffffffbc824a7a
+                                  0xffffffffbc8247a3
+                                  0xffffffffbc824084
+                                  0xffffffffbc81f2c9
+                                  0xffffffffbc81f0e7
+                                  0xffffffffbc7bc0e0
+                                  0xffffffffbc81ebae
+
+            99.18%     0.00%  a.out_debug_onl  libc.so.6            [.] start_thread
+                    |
+                    ---start_thread
+                       |          
+                       |--98.52%--0x7f30efcecdb3
+                       |          std::thread::_State_impl<std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > > >::_M_run()
+                       |          std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::operator()()
+                       |          double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                       |          std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       |          double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       |          perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                       |          
+                        --0.66%--name_stack_maps
+                                  __GI___snprintf
+                                  __vsnprintf_internal
+                                  __printf_buffer
+                                  __find_specmb (inlined)
+                                  __strchrnul_avx2
+                                  0xffffffffbd800bc7
+                                  0xffffffffbd62d6c3
+                                  0xffffffffbc4d2419
+                                  0xffffffffbc824a7a
+                                  0xffffffffbc8247a3
+                                  0xffffffffbc824084
+                                  0xffffffffbc81f2c9
+                                  0xffffffffbc81f0e7
+                                  0xffffffffbc7bc0e0
+                                  0xffffffffbc81ebae
+
+            98.52%    98.52%  a.out_debug_onl  a.out_debug_only     [.] perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+                    |
+                    ---clone3
+                       start_thread
+                       0x7f30efcecdb3
+                       std::thread::_State_impl<std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > > >::_M_run()
+                       std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::operator()()
+                       double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                       std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            98.52%     0.00%  a.out_debug_onl  libstdc++.so.6.0.33  [.] 0x00007f30efcecdb3
+                    |
+                    ---0x7f30efcecdb3
+                       std::thread::_State_impl<std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > > >::_M_run()
+                       std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::operator()()
+                       double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                       std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            98.52%     0.00%  a.out_debug_onl  a.out_debug_only     [.] std::thread::_State_impl<std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > > >::_M_run()
+                    |
+                    ---std::thread::_State_impl<std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > > >::_M_run()
+                       std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::operator()()
+                       double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                       std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            98.52%     0.00%  a.out_debug_onl  a.out_debug_only     [.] std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::operator()()
+                    |
+                    ---std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::operator()()
+                       double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                       std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            98.52%     0.00%  a.out_debug_onl  a.out_debug_only     [.] double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                    |
+                    ---double std::thread::_Invoker<std::tuple<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > > >::_M_invoke<0ul, 1ul, 2ul, 3ul, 4ul>(std::_Index_tuple<0ul, 1ul, 2ul, 3ul, 4ul>)
+                       std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            98.52%     0.00%  a.out_debug_onl  a.out_debug_only     [.] std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                    |
+                    ---std::__invoke_result<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >::type std::__invoke<double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+            98.52%     0.00%  a.out_debug_onl  a.out_debug_only     [.] double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                    |
+                    ---double std::__invoke_impl<double, double (*)(int, int, int, std::atomic<double>&), int, int, int, std::reference_wrapper<std::atomic<double> > >(std::__invoke_other, double (*&&)(int, int, int, std::atomic<double>&), int&&, int&&, int&&, std::reference_wrapper<std::atomic<double> >&&)
+                       perform_heavy_computation_worker(int, int, int, std::atomic<double>&)
+
+             0.81%     0.81%  a.out_debug_onl  [unknown]            [k] 0xffffffffbc8ef3a2
+                    |
+                    ---0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc406ee6
+                       0xffffffffbc8f12c7
+                       0xffffffffbc8f0f68
+                       0xffffffffbc8eef16
+                       0xffffffffbc8eee10
+                       0xffffffffbc8eeb09
+                       0xffffffffbc8ee577
+                       0xffffffffbc9815c7
+                       0xffffffffbc8ef3a4
+
+             0.81%     0.00%  a.out_debug_onl  [unknown]            [k] 0xffffffffbd800130
+                    |
+                    ---0xffffffffbd800130
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''

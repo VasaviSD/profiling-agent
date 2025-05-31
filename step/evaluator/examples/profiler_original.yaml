@@ -1,0 +1,526 @@
+source_code: |-
+  // --- Source: heavy_computation.cpp ---#include <iostream>
+  #include <vector>
+  #include <chrono>
+
+  // Function with a heavy computation load
+  double perform_heavy_computation(int size) {
+      double result = 0.0;
+      for (int i = 0; i < size; ++i) {
+          for (int j = 0; j < size; ++j) {
+              for (int k = 0; k < 100; ++k) { // Inner loop to make it more intensive
+                  result += static_cast<double>(i * j * k) / (size + 1.0);
+                  if (static_cast<int>(result) % 100000 == 0) { // Some condition to prevent over-optimization
+                       result -= 5.0;
+                  }
+              }
+          }
+      }
+      return result;
+  }
+
+  int main() {
+      std::cout << "Starting heavy computation test..." << std::endl;
+      auto start_time = std::chrono::high_resolution_clock::now();
+
+      double final_result = perform_heavy_computation(500); // Adjust size for desired load
+
+      auto end_time = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
+
+      std::cout << "Heavy computation finished." << std::endl;
+      std::cout << "Final result: " << final_result << std::endl;
+      std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
+
+      return 0;
+  }
+perf_command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+  -- /home/vasavi/profiling-agent/data/compile/a.out_opt_only '
+perf_report_output: |-
+  # To display the perf.data header info, please use --header/--header-only options.
+  #
+  #
+  # Total Lost Samples: 0
+  #
+  # Samples: 6  of event 'cycles:P'
+  # Event count (approx.): 731764209
+  #
+  # Children      Self  Command         Shared Object     Symbol                            
+  # ........  ........  ..............  ................  ..................................
+  #
+      97.45%    97.45%  a.out_opt_only  a.out_opt_only    [.] perform_heavy_computation(int)
+              |
+              ---_start
+                 __libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 perform_heavy_computation(int)
+
+      97.45%     0.00%  a.out_opt_only  a.out_opt_only    [.] _start
+              |
+              ---_start
+                 __libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 perform_heavy_computation(int)
+
+      97.45%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_main_impl (inlined)
+              |
+              ---__libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 perform_heavy_computation(int)
+
+      97.45%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_call_main
+              |
+              ---__libc_start_call_main
+                 main
+                 perform_heavy_computation(int)
+
+      97.45%     0.00%  a.out_opt_only  a.out_opt_only    [.] main
+              |
+              ---main
+                 perform_heavy_computation(int)
+
+       2.54%     2.54%  a.out_opt_only  [unknown]         [k] 0xffffffff9aeb5300
+              |
+              ---0xffffffff9be00130
+                 0xffffffff9bc2601f
+                 0xffffffff9aa06ee6
+                 0xffffffff9aef12c7
+                 0xffffffff9aef0f68
+                 0xffffffff9aeeef16
+                 0xffffffff9aeeee10
+                 0xffffffff9aeeeb09
+                 0xffffffff9aeee577
+                 0xffffffff9af815c7
+                 0xffffffff9aeef320
+                 0xffffffff9aeee10a
+                 0xffffffff9ae31b13
+                 0xffffffff9ae31433
+                 0xffffffff9ae68d5a
+                 0xffffffff9adcdf49
+                 0xffffffff9aec36df
+                 0xffffffff9aebe853
+                 0xffffffff9aeb5305
+
+       2.54%     0.00%  a.out_opt_only  [unknown]         [k] 0xffffffff9be00130
+              |
+              ---0xffffffff9be00130
+                 0xffffffff9bc2601f
+                 0xffffffff9aa06ee6
+                 0xffffffff9aef12c7
+                 0xffffffff9aef0f68
+                 0xffffffff9aeeef16
+                 0xffffffff9aeeee10
+                 0xffffffff9aeeeb09
+                 0xffffffff9aeee577
+                 0xffffffff9af815c7
+                 0xffffffff9aeef320
+                 0xffffffff9aeee10a
+                 0xffffffff9ae31b13
+                 0xffffffff9ae31433
+                 0xffffffff9ae68d5a
+                 0xffffffff9adcdf49
+                 0xffffffff9aec36df
+                 0xffffffff9aebe853
+                 0xffffffff9aeb5305
+
+       2.54%     0.00%  a.out_opt_only  [unknown]         [k] 0xffffffff9bc2601f
+              |
+              ---0xffffffff9bc2601f
+                 0xffffffff9aa06ee6
+                 0xffffffff9aef12c7
+                 0xffffffff9aef0f68
+                 0xffffffff9aeeef16
+                 0xffffffff9aeeee10
+                 0xffffffff9aeeeb09
+                 0xffffffff9aeee577
+                 0xffffffff9af815c7
+                 0xffffffff9aeef320
+profiler_error:
+profiling_details:
+  debug_opt:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_debug_opt
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_debug_opt '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.055 MB /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data (6 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 6  of event 'cycles:P'
+        # Event count (approx.): 714970013
+        #
+        # Children      Self  Command          Shared Object     Symbol                            
+        # ........  ........  ...............  ................  ..................................
+        #
+            97.46%    97.46%  a.out_debug_opt  a.out_debug_opt   [.] perform_heavy_computation(int)
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.46%     0.00%  a.out_debug_opt  a.out_debug_opt   [.] _start
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.46%     0.00%  a.out_debug_opt  libc.so.6         [.] __libc_start_main_impl (inlined)
+                    |
+                    ---__libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.46%     0.00%  a.out_debug_opt  libc.so.6         [.] __libc_start_call_main
+                    |
+                    ---__libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.46%     0.00%  a.out_debug_opt  a.out_debug_opt   [.] main
+                    |
+                    ---main
+                       perform_heavy_computation(int)
+
+             2.53%     2.53%  a.out_debug_opt  [unknown]         [k] 0xffffffff9aad7367
+                    |
+                    ---0xffffffff9be00130
+                       0xffffffff9bc2601f
+                       0xffffffff9aa06ee6
+                       0xffffffff9aef12c7
+                       0xffffffff9aef0f68
+                       0xffffffff9aeeef16
+                       0xffffffff9aeeee10
+                       0xffffffff9aeeeb09
+                       0xffffffff9aeee577
+                       0xffffffff9af815c7
+                       0xffffffff9aeef320
+                       0xffffffff9aeee10a
+                       0xffffffff9ae31ba4
+                       0xffffffff9aad6f53
+                       0xffffffff9aad6873
+                       0xffffffff9aad736a
+
+             2.53%     0.00%  a.out_debug_opt  [unknown]         [k] 0xffffffff9be00130
+                    |
+                    ---0xffffffff9be00130
+                       0xffffffff9bc2601f
+                       0xffffffff9aa06ee6
+                       0xffffffff9aef12c7
+                       0xffffffff9aef0f68
+                       0xffffffff9aeeef16
+                       0xffffffff9aeeee10
+                       0xffffffff9aeeeb09
+                       0xffffffff9aeee577
+                       0xffffffff9af815c7
+                       0xffffffff9aeef320
+                       0xffffffff9aeee10a
+                       0xffffffff9ae31ba4
+                       0xffffffff9aad6f53
+                       0xffffffff9aad6873
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''
+  opt_only:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_opt_only
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_opt_only '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.055 MB /home/vasavi/profiling-agent/data/perf/perf_opt_only.data (6 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 6  of event 'cycles:P'
+        # Event count (approx.): 731764209
+        #
+        # Children      Self  Command         Shared Object     Symbol                            
+        # ........  ........  ..............  ................  ..................................
+        #
+            97.45%    97.45%  a.out_opt_only  a.out_opt_only    [.] perform_heavy_computation(int)
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.45%     0.00%  a.out_opt_only  a.out_opt_only    [.] _start
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.45%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_main_impl (inlined)
+                    |
+                    ---__libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.45%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_call_main
+                    |
+                    ---__libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.45%     0.00%  a.out_opt_only  a.out_opt_only    [.] main
+                    |
+                    ---main
+                       perform_heavy_computation(int)
+
+             2.54%     2.54%  a.out_opt_only  [unknown]         [k] 0xffffffff9aeb5300
+                    |
+                    ---0xffffffff9be00130
+                       0xffffffff9bc2601f
+                       0xffffffff9aa06ee6
+                       0xffffffff9aef12c7
+                       0xffffffff9aef0f68
+                       0xffffffff9aeeef16
+                       0xffffffff9aeeee10
+                       0xffffffff9aeeeb09
+                       0xffffffff9aeee577
+                       0xffffffff9af815c7
+                       0xffffffff9aeef320
+                       0xffffffff9aeee10a
+                       0xffffffff9ae31b13
+                       0xffffffff9ae31433
+                       0xffffffff9ae68d5a
+                       0xffffffff9adcdf49
+                       0xffffffff9aec36df
+                       0xffffffff9aebe853
+                       0xffffffff9aeb5305
+
+             2.54%     0.00%  a.out_opt_only  [unknown]         [k] 0xffffffff9be00130
+                    |
+                    ---0xffffffff9be00130
+                       0xffffffff9bc2601f
+                       0xffffffff9aa06ee6
+                       0xffffffff9aef12c7
+                       0xffffffff9aef0f68
+                       0xffffffff9aeeef16
+                       0xffffffff9aeeee10
+                       0xffffffff9aeeeb09
+                       0xffffffff9aeee577
+                       0xffffffff9af815c7
+                       0xffffffff9aeef320
+                       0xffffffff9aeee10a
+                       0xffffffff9ae31b13
+                       0xffffffff9ae31433
+                       0xffffffff9ae68d5a
+                       0xffffffff9adcdf49
+                       0xffffffff9aec36df
+                       0xffffffff9aebe853
+                       0xffffffff9aeb5305
+
+             2.54%     0.00%  a.out_opt_only  [unknown]         [k] 0xffffffff9bc2601f
+                    |
+                    ---0xffffffff9bc2601f
+                       0xffffffff9aa06ee6
+                       0xffffffff9aef12c7
+                       0xffffffff9aef0f68
+                       0xffffffff9aeeef16
+                       0xffffffff9aeeee10
+                       0xffffffff9aeeeb09
+                       0xffffffff9aeee577
+                       0xffffffff9af815c7
+                       0xffffffff9aeef320
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''
+  debug_only:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_debug_only
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_debug_only.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_debug_only '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_debug_only.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.127 MB /home/vasavi/profiling-agent/data/perf/perf_debug_only.data (15 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 15  of event 'cycles:P'
+        # Event count (approx.): 1576705015
+        #
+        # Children      Self  Command          Shared Object     Symbol                            
+        # ........  ........  ...............  ................  ..................................
+        #
+            98.99%     0.00%  a.out_debug_onl  a.out_debug_only  [.] _start
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            98.99%     0.00%  a.out_debug_onl  libc.so.6         [.] __libc_start_main_impl (inlined)
+                    |
+                    ---__libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            98.99%     0.00%  a.out_debug_onl  libc.so.6         [.] __libc_start_call_main
+                    |
+                    ---__libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            98.99%     0.00%  a.out_debug_onl  a.out_debug_only  [.] main
+                    |
+                    ---main
+                       perform_heavy_computation(int)
+
+            98.99%    98.98%  a.out_debug_onl  a.out_debug_only  [.] perform_heavy_computation(int)
+                    |          
+                     --98.98%--_start
+                               __libc_start_main_impl (inlined)
+                               __libc_start_call_main
+                               main
+                               perform_heavy_computation(int)
+
+             1.01%     1.01%  a.out_debug_onl  [unknown]         [k] 0xffffffff9ae39795
+                    |
+                    ---0xffffffff9be00130
+                       0xffffffff9bc2601f
+                       0xffffffff9aa06ee6
+                       0xffffffff9aef12c7
+                       0xffffffff9aef0f68
+                       0xffffffff9aeeef16
+                       0xffffffff9aeeee10
+                       0xffffffff9aeeeb09
+                       0xffffffff9aeee577
+                       0xffffffff9af815c7
+                       0xffffffff9aeef320
+                       0xffffffff9aeee099
+                       0xffffffff9ae3511d
+                       0xffffffff9ae39796
+
+             1.01%     0.00%  a.out_debug_onl  [unknown]         [k] 0xffffffff9be00130
+                    |
+                    ---0xffffffff9be00130
+                       0xffffffff9bc2601f
+                       0xffffffff9aa06ee6
+                       0xffffffff9aef12c7
+                       0xffffffff9aef0f68
+                       0xffffffff9aeeef16
+                       0xffffffff9aeeee10
+                       0xffffffff9aeeeb09
+                       0xffffffff9aeee577
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''

@@ -1,5 +1,5 @@
-source_code: |
-  #include <iostream>
+source_code: |-
+  // --- Source: heavy_computation.cpp ---#include <iostream>
   #include <vector>
   #include <chrono>
 
@@ -11,7 +11,7 @@ source_code: |
               for (int k = 0; k < 100; ++k) { // Inner loop to make it more intensive
                   result += static_cast<double>(i * j * k) / (size + 1.0);
                   if (static_cast<int>(result) % 100000 == 0) { // Some condition to prevent over-optimization
-                      result -= 5.0;
+                       result -= 5.0;
                   }
               }
           }
@@ -33,108 +33,473 @@ source_code: |
       std::cout << "Computation took " << elapsed_ms.count() << " ms." << std::endl;
 
       return 0;
-  } 
-perf_command: perf record -g -F 99 -o perf.data -- cpp_file
-perf_report_output: |
-  # Children      Self  Command          Shared Object         Symbol                            
-  # ........  ........  ...............  ....................  ..................................
+  }
+perf_command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+  -- /home/vasavi/profiling-agent/data/compile/a.out_opt_only '
+perf_report_output: |-
+  # To display the perf.data header info, please use --header/--header-only options.
   #
-      95.23%     0.00%  perf_target_com  perf_target_compiled  [.] _start
+  #
+  # Total Lost Samples: 0
+  #
+  # Samples: 6  of event 'cycles:P'
+  # Event count (approx.): 766883068
+  #
+  # Children      Self  Command         Shared Object     Symbol                            
+  # ........  ........  ..............  ................  ..................................
+  #
+      97.35%    97.35%  a.out_opt_only  a.out_opt_only    [.] perform_heavy_computation(int)
               |
               ---_start
-                __libc_start_main@@GLIBC_2.34
-                __libc_start_call_main
-                main
-                perform_heavy_computation(int)
+                 __libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 perform_heavy_computation(int)
 
-      95.23%     0.00%  perf_target_com  libc.so.6             [.] __libc_start_main@@GLIBC_2.34
+      97.35%     0.00%  a.out_opt_only  a.out_opt_only    [.] _start
               |
-              ---__libc_start_main@@GLIBC_2.34
-                __libc_start_call_main
-                main
-                perform_heavy_computation(int)
+              ---_start
+                 __libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 perform_heavy_computation(int)
 
-      95.23%     0.00%  perf_target_com  libc.so.6             [.] __libc_start_call_main
+      97.35%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_main_impl (inlined)
+              |
+              ---__libc_start_main_impl (inlined)
+                 __libc_start_call_main
+                 main
+                 perform_heavy_computation(int)
+
+      97.35%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_call_main
               |
               ---__libc_start_call_main
-                main
-                perform_heavy_computation(int)
+                 main
+                 perform_heavy_computation(int)
 
-      95.23%     0.00%  perf_target_com  perf_target_compiled  [.] main
+      97.35%     0.00%  a.out_opt_only  a.out_opt_only    [.] main
               |
               ---main
-                perform_heavy_computation(int)
+                 perform_heavy_computation(int)
 
-      95.23%    95.21%  perf_target_com  perf_target_compiled  [.] perform_heavy_computation(int)
-              |          
-              --95.21%--_start
-                        __libc_start_main@@GLIBC_2.34
-                        __libc_start_call_main
-                        main
-                        perform_heavy_computation(int)
-threshold: 10
-context: 2
-bottleneck_location: '`perform_heavy_computation` function in the source file.'
-bottleneck_type: 95.21% of CPU samples.
-analysis_hypothesis: Heavy computation in nested loops with potentially inefficient
-  data access patterns.
+       2.64%     2.64%  a.out_opt_only  [unknown]         [k] 0xffffffffbcae1030
+              |
+              ---0xffffffffbd800130
+                 0xffffffffbd62601f
+                 0xffffffffbc406ee6
+                 0xffffffffbc8f12c7
+                 0xffffffffbc8f0f68
+                 0xffffffffbc8eef16
+                 0xffffffffbc8eee10
+                 0xffffffffbc8eeb09
+                 0xffffffffbc8ee577
+                 0xffffffffbc98186b
+                 0xffffffffbc980bd0
+                 0xffffffffbc7f19cd
+                 0xffffffffbcae1035
+
+       2.64%     0.00%  a.out_opt_only  [unknown]         [k] 0xffffffffbd800130
+              |
+              ---0xffffffffbd800130
+profiler_error:
+profiling_details:
+  debug_opt:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_debug_opt
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_debug_opt '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.055 MB /home/vasavi/profiling-agent/data/perf/perf_debug_opt.data (6 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 6  of event 'cycles:P'
+        # Event count (approx.): 751921978
+        #
+        # Children      Self  Command          Shared Object     Symbol                            
+        # ........  ........  ...............  ................  ..................................
+        #
+            97.37%    97.37%  a.out_debug_opt  a.out_debug_opt   [.] perform_heavy_computation(int)
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.37%     0.00%  a.out_debug_opt  a.out_debug_opt   [.] _start
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.37%     0.00%  a.out_debug_opt  libc.so.6         [.] __libc_start_main_impl (inlined)
+                    |
+                    ---__libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.37%     0.00%  a.out_debug_opt  libc.so.6         [.] __libc_start_call_main
+                    |
+                    ---__libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.37%     0.00%  a.out_debug_opt  a.out_debug_opt   [.] main
+                    |
+                    ---main
+                       perform_heavy_computation(int)
+
+             2.63%     2.63%  a.out_debug_opt  [unknown]         [k] 0xffffffffbcb54a40
+                    |
+                    ---0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc406ee6
+                       0xffffffffbc8f12c7
+                       0xffffffffbc8f0f68
+                       0xffffffffbc8eef16
+                       0xffffffffbc8eee10
+                       0xffffffffbc8eeb09
+                       0xffffffffbc8ee577
+                       0xffffffffbc98186b
+                       0xffffffffbc980bd0
+                       0xffffffffbc7f19cd
+                       0xffffffffbc7f1859
+                       0xffffffffbcb54a45
+
+             2.63%     0.00%  a.out_debug_opt  [unknown]         [k] 0xffffffffbd800130
+                    |
+                    ---0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc406ee6
+                       0xffffffffbc8f12c7
+                       0xffffffffbc8f0f68
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''
+  opt_only:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_opt_only
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_opt_only '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_opt_only.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.055 MB /home/vasavi/profiling-agent/data/perf/perf_opt_only.data (6 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 6  of event 'cycles:P'
+        # Event count (approx.): 766883068
+        #
+        # Children      Self  Command         Shared Object     Symbol                            
+        # ........  ........  ..............  ................  ..................................
+        #
+            97.35%    97.35%  a.out_opt_only  a.out_opt_only    [.] perform_heavy_computation(int)
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.35%     0.00%  a.out_opt_only  a.out_opt_only    [.] _start
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.35%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_main_impl (inlined)
+                    |
+                    ---__libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.35%     0.00%  a.out_opt_only  libc.so.6         [.] __libc_start_call_main
+                    |
+                    ---__libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            97.35%     0.00%  a.out_opt_only  a.out_opt_only    [.] main
+                    |
+                    ---main
+                       perform_heavy_computation(int)
+
+             2.64%     2.64%  a.out_opt_only  [unknown]         [k] 0xffffffffbcae1030
+                    |
+                    ---0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc406ee6
+                       0xffffffffbc8f12c7
+                       0xffffffffbc8f0f68
+                       0xffffffffbc8eef16
+                       0xffffffffbc8eee10
+                       0xffffffffbc8eeb09
+                       0xffffffffbc8ee577
+                       0xffffffffbc98186b
+                       0xffffffffbc980bd0
+                       0xffffffffbc7f19cd
+                       0xffffffffbcae1035
+
+             2.64%     0.00%  a.out_opt_only  [unknown]         [k] 0xffffffffbd800130
+                    |
+                    ---0xffffffffbd800130
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''
+  debug_only:
+    status: success
+    compile:
+      command: N/A
+      executable_path: /home/vasavi/profiling-agent/data/compile/a.out_debug_only
+      stderr: ''
+      error: ''
+    perf_record:
+      command: 'perf record -g -F 99 --call-graph dwarf -o /home/vasavi/profiling-agent/data/perf/perf_debug_only.data
+        -- /home/vasavi/profiling-agent/data/compile/a.out_debug_only '
+      data_path: /home/vasavi/profiling-agent/data/perf/perf_debug_only.data
+      stderr: |
+        WARNING: Kernel address maps (/proc/{kallsyms,modules}) are restricted,
+        check /proc/sys/kernel/kptr_restrict and /proc/sys/kernel/perf_event_paranoid.
+
+        Samples in kernel functions may not be resolved if a suitable vmlinux
+        file is not found in the buildid cache or in the vmlinux path.
+
+        Samples in kernel modules won't be resolved at all.
+
+        If some relocation was applied (e.g. kexec) symbols may be misresolved
+        even with a suitable vmlinux or kallsyms file.
+
+        Couldn't record kernel reference relocation symbol
+        Symbol resolution may be skewed if relocation was used (e.g. kexec).
+        Check /proc/kallsyms permission or run as root.
+        [ perf record: Woken up 1 times to write data ]
+        [ perf record: Captured and wrote 0.103 MB /home/vasavi/profiling-agent/data/perf/perf_debug_only.data (12 samples) ]
+      error: ''
+    perf_report:
+      stdout: |-
+        # To display the perf.data header info, please use --header/--header-only options.
+        #
+        #
+        # Total Lost Samples: 0
+        #
+        # Samples: 12  of event 'cycles:P'
+        # Event count (approx.): 964409646
+        #
+        # Children      Self  Command          Shared Object     Symbol                            
+        # ........  ........  ...............  ................  ..................................
+        #
+            98.21%    98.21%  a.out_debug_onl  a.out_debug_only  [.] perform_heavy_computation(int)
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            98.21%     0.00%  a.out_debug_onl  a.out_debug_only  [.] _start
+                    |
+                    ---_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            98.21%     0.00%  a.out_debug_onl  libc.so.6         [.] __libc_start_main_impl (inlined)
+                    |
+                    ---__libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            98.21%     0.00%  a.out_debug_onl  libc.so.6         [.] __libc_start_call_main
+                    |
+                    ---__libc_start_call_main
+                       main
+                       perform_heavy_computation(int)
+
+            98.21%     0.00%  a.out_debug_onl  a.out_debug_only  [.] main
+                    |
+                    ---main
+                       perform_heavy_computation(int)
+
+             1.78%     1.78%  a.out_debug_onl  [unknown]         [k] 0xffffffffbc4d484c
+                    |
+                    ---0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc406ee6
+                       0xffffffffbc8f12c7
+                       0xffffffffbc8f0f68
+                       0xffffffffbc8eef16
+                       0xffffffffbc8eee10
+                       0xffffffffbc8eeb09
+                       0xffffffffbc8ee577
+                       0xffffffffbc9815c7
+                       0xffffffffbc8ef320
+                       0xffffffffbc8ee0fe
+                       0xffffffffbc81b3cc
+                       0xffffffffbc81b027
+                       0xffffffffbc81ad04
+                       0xffffffffbc4c4bf0
+
+             1.78%     0.00%  a.out_debug_onl  [unknown]         [k] 0xffffffffbd800130
+                    |
+                    ---0xffffffffbd800130
+                       0xffffffffbd62601f
+                       0xffffffffbc406ee6
+                       0xffffffffbc8f12c7
+                       0xffffffffbc8f0f68
+                       0xffffffffbc8eef16
+                       0xffffffffbc8eee10
+                       0xffffffffbc8eeb09
+                       0xffffffffbc8ee577
+                       0xffffffffbc9815c7
+                       0xffffffffbc8ef320
+                       0xffffffffbc8ee0fe
+                       0xffffffffbc81b3cc
+                       0xffffffffbc81b027
+                       0xffffffffbc81ad04
+      stderr: |+
+        Warning:
+        Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+        Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+        As no suitable kallsyms nor vmlinux was found, kernel samples
+        can't be resolved.
+
+        Samples in kernel modules can't be resolved as well.
+
+      error: ''
+bottleneck_location: '`perform_heavy_computation(int)` in `heavy_computation.cpp`
+  (around line 7)'
+bottleneck_type: 97.35% of CPU cycles samples attributed to this function
+analysis_hypothesis: The function contains deeply nested loops performing heavy arithmetic
+  computations. The triple nested loop with size-dependent iterations (size=500) and
+  an inner loop of 100 iterations causes a very high computational load. The conditional
+  inside the innermost loop adds additional branching overhead. This tight, compute-heavy
+  loop dominates execution time, leaving almost no CPU time for other code.
 performance_analysis: |-
-  - **Bottleneck 1**
-    - **Location:** `perform_heavy_computation` function in the source file.
-    - **Metric/Impact:** 95.21% of CPU samples.
-    - **Likely Cause:** Heavy computation in nested loops with potentially inefficient data access patterns.
-    ```cpp
-      for (int i = 0; i < size; ++i) {
-          for (int j = 0; j < size; ++j) {
-              for (int k = 0; k < 100; ++k) {
-    ```
+  - **Location:** `perform_heavy_computation(int)` in `heavy_computation.cpp` (around line 7)  
+  - **Metric/Impact:** 97.35% of CPU cycles samples attributed to this function  
+  - **Likely Cause:** The function contains deeply nested loops performing heavy arithmetic computations. The triple nested loop with size-dependent iterations (size=500) and an inner loop of 100 iterations causes a very high computational load. The conditional inside the innermost loop adds additional branching overhead. This tight, compute-heavy loop dominates execution time, leaving almost no CPU time for other code.  
+  ```cpp
+  for (int i = 0; i < size; ++i) {
+      for (int j = 0; j < size; ++j) {
+          for (int k = 0; k < 100; ++k) { // Inner loop to make it more intensive
+              result += static_cast<double>(i * j * k) / (size + 1.0);
+              if (static_cast<int>(result) % 100000 == 0) { // Some condition to prevent over-optimization
+                   result -= 5.0;
+              }
+          }
+      }
+  }
+  ```
 
-  - **Bottleneck 2**
-    - **Location:** `_start` function.
-    - **Metric/Impact:** 95.23% of total samples.
-    - **Likely Cause:** High overhead at program start-up or system call processing.
-    ```cpp
-      auto start_time = std::chrono::high_resolution_clock::now();
-    ```
+  No other function or code region accounts for more than 5% of samples or shows significant performance impact.
+cost: 0.0036103999999999997
+tokens: 4013
+proposed_fix_strategy: |-
+  The primary bottleneck arises from the triple nested loops with a very large iteration space (size=500) and a costly inner loop of 100 iterations, compounded by a conditional branch inside the innermost loop. To alleviate this, the strategy involves reducing the frequency of the conditional check, minimizing redundant computations, and exploiting potential parallelism or mathematical simplifications. The condition can be moved outside the innermost loop or checked less frequently to reduce branch mispredictions. Additionally, loop unrolling, precomputation, or parallel execution can help improve throughput. Each variant will explore a different approach to reduce overhead and improve CPU utilization.
 
-  - **Bottleneck 3**
-    - **Location:** `main` function.
-    - **Metric/Impact:** 95.23% of total samples.
-    - **Likely Cause:** Overhead in program initialization or wrapping of `main` function.
-    ```cpp
-      std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
-    ```
-cost: 0.0446035
-tokens: 3343
-proposed_fix_strategy: The main strategy to address the identified bottleneck involves
-  optimizing the nested loop computations. Given the heavy computation is primarily
-  CPU-bound, focusing on reducing the number of iterations, improving cache locality,
-  and utilizing modern CPU features like parallelism can offer significant performance
-  gains. The first approach will aim to reduce the computational complexity by reorganizing
-  and minimizing redundant calculations. The second will involve introducing parallel
-  processing to leverage multi-core processors commonly available in modern systems.
-  The third strategy will focus on further optimizing data access patterns and computations
-  to enhance cache efficiency and reduce unnecessary operations.
+  ---
 modified_code_variants:
 - variant_id: Variant 1
-  explanation: No explicit explanation provided.
+  explanation: Refactor by moving the conditional check outside the innermost loop
+    to reduce branch overhead and accumulate partial results before updating the main
+    result.
   code: |-
     #include <iostream>
     #include <vector>
     #include <chrono>
 
-    // Optimized by reducing redundant calculations
+    // Function with a heavy computation load, optimized by reducing conditional checks inside the innermost loop
     double perform_heavy_computation(int size) {
         double result = 0.0;
-        double sizePlusOne = size + 1.0; // Avoid repeated calculation
         for (int i = 0; i < size; ++i) {
             for (int j = 0; j < size; ++j) {
-                double precomputedValue = static_cast<double>(i * j) / sizePlusOne;
-                for (int k = 0; k < 100; ++k) {
-                    result += precomputedValue * k;
-                    if (static_cast<int>(result) % 100000 == 0) {
-                        result -= 5.0;
-                    }
+                double partial_sum = 0.0;
+                for (int k = 0; k < 100; ++k) { // Inner loop to make it more intensive
+                    partial_sum += static_cast<double>(i * j * k) / (size + 1.0);
+                }
+                result += partial_sum;
+                if (static_cast<int>(result) % 100000 == 0) { // Condition checked once per (i,j)
+                    result -= 5.0;
                 }
             }
         }
@@ -145,7 +510,7 @@ modified_code_variants:
         std::cout << "Starting heavy computation test..." << std::endl;
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        double final_result = perform_heavy_computation(500);
+        double final_result = perform_heavy_computation(500); // Adjust size for desired load
 
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
@@ -157,40 +522,44 @@ modified_code_variants:
         return 0;
     }
 - variant_id: Variant 2
-  explanation: No explicit explanation provided.
+  explanation: Use OpenMP to parallelize the outer loops, distributing workload across
+    multiple CPU cores to reduce wall-clock time.
   code: |-
     #include <iostream>
     #include <vector>
     #include <chrono>
-    #include <execution>
+    #include <omp.h>  // OpenMP header for parallelism
 
-    // Utilizing parallel algorithms for heavy computation
+    // Function with a heavy computation load, parallelized using OpenMP
     double perform_heavy_computation(int size) {
-        std::vector<double> results(size * size * 100);
-        std::for_each(std::execution::par, results.begin(), results.end(), [size, &results](double& result) {
-            int index = &result - &results[0];
-            int i = index / (size * 100);
-            int j = (index % (size * 100)) / 100;
-            int k = index % 100;
-            double tempResult = static_cast<double>(i * j * k) / (size + 1.0);
-            result = tempResult;
-            if (static_cast<int>(tempResult) % 100000 == 0) {
-                result -= 5.0;
-            }
-        });
+        double result = 0.0;
 
-        double finalResult = 0.0;
-        for (auto& result : results) {
-            finalResult += result;
+        #pragma omp parallel
+        {
+            double local_result = 0.0;
+            #pragma omp for collapse(2) schedule(static)
+            for (int i = 0; i < size; ++i) {
+                for (int j = 0; j < size; ++j) {
+                    for (int k = 0; k < 100; ++k) {
+                        local_result += static_cast<double>(i * j * k) / (size + 1.0);
+                        if (static_cast<int>(local_result) % 100000 == 0) {
+                            local_result -= 5.0;
+                        }
+                    }
+                }
+            }
+            #pragma omp atomic
+            result += local_result;
         }
-        return finalResult;
+
+        return result;
     }
 
     int main() {
         std::cout << "Starting heavy computation test..." << std::endl;
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        double final_result = perform_heavy_computation(500);
+        double final_result = perform_heavy_computation(500); // Adjust size for desired load
 
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;
@@ -202,30 +571,40 @@ modified_code_variants:
         return 0;
     }
 - variant_id: Variant 3
-  explanation: No explicit explanation provided.
+  explanation: Precompute the factor i*j once per iteration, move division out of
+    innermost loop, and unroll inner loop partially to reduce repeated computations
+    and improve data locality.
   code: |-
     #include <iostream>
     #include <vector>
     #include <chrono>
 
-    // Further optimized by minimizing operations within the innermost loop
+    // Function with a heavy computation load, optimized by precomputing and partially unrolling inner loop
     double perform_heavy_computation(int size) {
         double result = 0.0;
-        double correctionFactor = 0.0;
-        double sizePlusOne = size + 1.0;
+        double divisor = size + 1.0;
+
         for (int i = 0; i < size; ++i) {
             for (int j = 0; j < size; ++j) {
-                double ijProduct = static_cast<double>(i * j);
-                for (int k = 0; k < 100; ++k) {
-                    result += ijProduct * k / sizePlusOne;
-                    // Accumulate corrections in a separate variable to reduce the frequency of conditional checks
-                    if (k == 99 && static_cast<int>(result) % 100000 == 0) {
-                        correctionFactor -= 5.0;
-                    }
+                double base = static_cast<double>(i * j) / divisor;
+                int k = 0;
+                // Unroll loop by factor of 5
+                for (; k + 4 < 100; k += 5) {
+                    result += base * k;
+                    result += base * (k + 1);
+                    result += base * (k + 2);
+                    result += base * (k + 3);
+                    result += base * (k + 4);
+                }
+                // Handle remaining iterations if any
+                for (; k < 100; ++k) {
+                    result += base * k;
+                }
+                if (static_cast<int>(result) % 100000 == 0) {
+                    result -= 5.0;
                 }
             }
         }
-        result += correctionFactor;
         return result;
     }
 
@@ -233,7 +612,7 @@ modified_code_variants:
         std::cout << "Starting heavy computation test..." << std::endl;
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        double final_result = perform_heavy_computation(500);
+        double final_result = perform_heavy_computation(500); // Adjust size for desired load
 
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapsed_ms = end_time - start_time;

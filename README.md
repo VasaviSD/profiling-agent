@@ -13,11 +13,14 @@ This project aims to build an AI agent that uses the Linux `perf` tool to automa
 
 - `README.md`: This file - an overview of the project.
 - `core/`: Contains core components, base classes (like `Step`), and utilities shared across the project.
-- `step/`: Contains the different autonomous steps or "agents" that form the profiling and optimization pipeline. Each sub-directory typically represents a distinct stage:
-  - `step/profiler/`: Compiles the code and gathers initial `perf` data and reports.
-  - `step/analyzer/`: Analyzes `perf` reports (potentially using LLMs) to identify bottlenecks.
-  - `step/replicator/`: Proposes and applies code modifications based on analysis.
-  - `step/evaluator/`: Evaluates the performance of modified code variants.
+- `pipe/`: Contains orchestration scripts that combine multiple steps into a pipeline.
+  - [`pipe/optimizer/README.md`](pipe/optimizer/README.md): Orchestrates the Profiler, Analyzer, and Replicator agents.
+- `step/`: Contains the different autonomous steps or "agents" that form the profiling and optimization pipeline. Each sub-directory typically represents a distinct stage with its own `README.md`:
+  - [`step/profiler/README.md`](step/profiler/README.md): Compiles the code and gathers initial `perf` data and reports.
+  - [`step/analyzer/README.md`](step/analyzer/README.md): Analyzes `perf` reports (potentially using LLMs) to identify bottlenecks.
+  - [`step/replicator/README.md`](step/replicator/README.md): Proposes and applies code modifications based on analysis.
+  - [`step/evaluator/README.md`](step/evaluator/README.md): Evaluates the performance of modified code variants.
+  - [`step/patcher/README.md`](step/patcher/README.md): Applies a selected code variant to the original source file.
 - `tool/`: Contains Python wrappers and interfaces for external command-line tools used by the steps.
   - `tool/compile/`: Wrapper for the C++ compiler (e.g., `g++`).
   - `tool/perf/`: Wrapper for the Linux `perf` tool (handling `record`, `report`, etc.).

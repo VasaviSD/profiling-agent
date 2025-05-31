@@ -6,7 +6,7 @@ The Evaluator agent is responsible for comparing the performance of a C++ code v
 
 ## Functionality
 
--   **Input (Primary Configuration YAML):** Requires a single YAML file specified via the `--input-file` CLI argument. This YAML must contain:
+-   **Input (Primary Configuration YAML):** Requires a single YAML file specified via CLI. This YAML must contain:
     -   `original_profiler_output_path`: (string, required) Path to the Profiler's output YAML for the "original" C++ code.
     -   `variant_profiler_output_path`: (string, required) Path to the Profiler's output YAML for the "variant" C++ code.
     -   `evaluator_specific_options` (object, optional): 
@@ -24,7 +24,7 @@ The Evaluator agent is responsible for comparing the performance of a C++ code v
     -   Quantify and explain any improvements or regressions.
     -   Provide a confidence score for its evaluation.
 
--   **Output:** Produces a YAML file (specified by `--output-file`) containing:
+-   **Output:** Produces a YAML file containing:
     -   `evaluator_input_config_path`: Path to the primary input YAML used by the Evaluator.
     -   `actual_original_profiler_output_path`: Absolute path to the original profiler YAML that was processed.
     -   `actual_variant_profiler_output_path`: Absolute path to the variant profiler YAML that was processed.
@@ -36,24 +36,24 @@ The Evaluator agent is responsible for comparing the performance of a C++ code v
 The Evaluator agent is run from the command line, typically from the root of the `profiling-agent` project.
 
 ```bash
-poetry run python -m step.evaluator.evaluator_agent --input-file <path_to_evaluator_input_config.yaml> --output-file <path_to_evaluator_output.yaml>
+poetry run python -m step.evaluator.evaluator_agent -o <path_to_evaluator_output.yaml> <path_to_evaluator_input_config.yaml>
 ```
 
-**Command-Line Arguments (from base `Step` class):**
+**Command-Line Arguments:**
 
--   `--input-file INPUT_FILE` (string, **required**):
+-   `<input_file_path>` (string, positional, **required**):
     Path to the Evaluator's primary input configuration YAML file.
-    *Example:* `step/evaluator/examples/evaluator_input.yaml`
+    *Example:* `step/evaluator/examples/evaluator_input.yaml`.
 
--   `--output-file OUTPUT_FILE` (string, **required**):
+-   `-o <output_file_path>` (string, **required**):
     Path to save the Evaluator's output YAML file.
     *Example:* `step/evaluator/examples/evaluator_output.yaml`
 
-**Example Evaluator Input Configuration YAML (`evaluator_input_config_example.yaml`):**
+**Example Evaluator Input Configuration YAML (`evaluator_input.yaml`):**
 
 ```yaml
-original_profiler_output_path: "optimizer_run_1/heavy_computation/iter_1/profiler_output.yaml"
-variant_profiler_output_path: "optimizer_run_1/heavy_computation/iter_1/profiler_run_variant_variant_1/profiler_output_variant_variant_1.yaml"
+original_profiler_output_path: "step/evaluator/examples/profiler_original.yaml"
+variant_profiler_output_path: "step/evaluator/examples/profiler_variant.yaml"
 
 # Optional: Override default threshold/context from prompts/evaluator_prompt.yaml
 # evaluator_specific_options:
@@ -65,18 +65,16 @@ variant_profiler_output_path: "optimizer_run_1/heavy_computation/iter_1/profiler
 
 ```bash
 # Ensure you are in the root directory of the profiling-agent project
-# Assuming evaluator_input_config.yaml exists and is populated correctly:
-poetry run python -m step.evaluator.evaluator_agent \
-    step/evaluator/examples/evaluator_input.yaml \
-    -o step/evaluator/examples/evaluator_output.yaml
+# Assuming evaluator_input.yaml exists and is populated correctly in the examples directory:
+poetry run python -m step.evaluator.evaluator_agent -o step/evaluator/examples/evaluator_output.yaml step/evaluator/examples/evaluator_input.yaml
 ```
 
 ## Output Structure (Example `evaluator_output.yaml`)
 
 ```yaml
-evaluator_input_config_path: /home/user/profiling-agent/step/evaluator/examples/evaluator_input_config.yaml
-actual_original_profiler_output_path: /home/user/profiling-agent/optimizer_run_1/heavy_computation/iter_1/profiler_output.yaml
-actual_variant_profiler_output_path: /home/user/profiling-agent/optimizer_run_1/heavy_computation/iter_1/profiler_run_variant_variant_1/profiler_output_variant_variant_1.yaml
+evaluator_input_config_path: step/evaluator/examples/evaluator_input.yaml
+actual_original_profiler_output_path: step/evaluator/examples/profiler_original.yaml
+actual_variant_profiler_output_path: step/evaluator/examples/profiler_variant.yaml
 evaluation_results:
   comparison_summary: |
     The variant shows a significant reduction in overhead for the 'main' function and relocates some overhead to a new 'bar' function which appears more efficient overall.

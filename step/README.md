@@ -49,12 +49,10 @@ These agents are designed to work in a sequence. A common workflow would be:
 
 1.  **Run the Profiler Agent:** Provide it with an input YAML specifying the C++ source directory and other options. It outputs profiling results (`profiler_output.yaml`) structured for the Analyzer.
     ```bash
-    # Example assumes input config is in step/profiler/examples/profiler_input_example.yaml
     poetry run python -m step.profiler.profiler_agent step/profiler/examples/profiler_input.yaml -o step/profiler/examples/profiler_output.yaml
     ```
 2.  **Run the Analyzer Agent:** Use the output from the Profiler (`profiler_output.yaml`) as the input for the Analyzer. It outputs an analysis YAML (`analyzer_output.yaml`).
     ```bash
-    # Example assumes analyzer_input_example.yaml is compatible or profiler_output.yaml is used directly
     poetry run python -m step.analyzer.analyzer_agent step/profiler/examples/profiler_output.yaml -o step/analyzer/examples/analyzer_output.yaml 
     ```
 3.  **Run the Replicator Agent:** Use the output from the Analyzer (`analyzer_output.yaml`) as the input for the Replicator. It will then generate potential code fixes based on the analysis.
@@ -65,10 +63,9 @@ These agents are designed to work in a sequence. A common workflow would be:
     ```bash
     poetry run python -m step.patcher.patcher_agent step/patcher/examples/patcher_input.yaml -o step/patcher/examples/patcher_output.yaml
     ```
-5.  **Run the Evaluator Agent:** After profiling a code variant (which might be done by the Optimizer pipe or manually after using the Patcher), use the Profiler's output for the original code and the Profiler's output for the variant code as inputs to the Evaluator. 
+5.  **Run the Evaluator Agent:** After profiling a code variant (which might be done by the Optimizer pipe or manually after using the Patcher), use the Profiler's output for the original code and the Profiler's output for the variant code as inputs to the Evaluator.
     ```bash
-    # Example assumes profiler_original.yaml and profiler_variant.yaml are available
-    poetry run python -m step.evaluator.evaluator_agent step/evaluator/examples/profiler_original.yaml step/evaluator/examples/profiler_variant.yaml -o step/evaluator/examples/evaluator_output.yaml
+    poetry run python -m step.evaluator.evaluator_agent step/evaluator/examples/evaluator_intput.yaml -o step/evaluator/examples/evaluator_output.yaml
     ```
 
 This pipeline allows for an automated flow from performance data collection and analysis to the generation of potential code optimizations and their application to new files.

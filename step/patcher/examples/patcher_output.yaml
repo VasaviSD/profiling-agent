@@ -250,16 +250,16 @@ patcher_overall_error:
 patched_variants_results:
 - variant_id: Variant 1
   patched_file_path: 
-    /home/vasavi/profiling-agent/data/sources/patched_variants/variant_1/heavy_computation.cpp
+    /home/vasavi/profiling-agent/data/patched_variants/variant_1/heavy_computation.cpp
   status: success
   error:
 - variant_id: Variant 2
   patched_file_path: 
-    /home/vasavi/profiling-agent/data/sources/patched_variants/variant_2/heavy_computation.cpp
+    /home/vasavi/profiling-agent/data/patched_variants/variant_2/heavy_computation.cpp
   status: success
   error:
 - variant_id: Variant 3
   patched_file_path: 
-    /home/vasavi/profiling-agent/data/sources/patched_variants/variant_3/heavy_computation.cpp
+    /home/vasavi/profiling-agent/data/patched_variants/variant_3/heavy_computation.cpp
   status: success
   error:
