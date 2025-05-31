@@ -78,6 +78,15 @@ def main():
         # Initially, it's the profiler output of the original, unmodified code.
         # After each iteration, if a variant performs better, this will be updated to that variant's profiler output.
         baseline_profiler_output_for_next_iteration = None
+        # Store the profiler output of the original code from the very first iteration for this file
+        true_initial_profiler_output_for_file = None 
+        # Store info about the run that produced the current baseline_profiler_output_for_next_iteration
+        current_baseline_info = {
+            "profiler_output_path": None,
+            "variant_id": "original", # Initially
+            "iteration_established": 0,
+            "evaluation_summary_at_selection": None # From evaluator
+        }
 
         for i in range(args.iterations):
             iteration = i + 1
@@ -115,6 +124,11 @@ def main():
                 # Set the first baseline profiler output
                 if iteration == 1:
                     baseline_profiler_output_for_next_iteration = profiler_output_path
+                    true_initial_profiler_output_for_file = profiler_output_path
+                    current_baseline_info["profiler_output_path"] = profiler_output_path
+                    current_baseline_info["variant_id"] = f"original (profiled in Iteration 1)"
+                    current_baseline_info["iteration_established"] = 1
+                    current_baseline_info["evaluation_summary_at_selection"] = None # Original has no prior evaluation result that led to its selection as baseline
                 
                 # The Analyzer will now use the baseline_profiler_output_for_next_iteration as its input
                 # instead of directly using the profiler_output_path from the *current* initial profiling run
@@ -308,6 +322,11 @@ def main():
                                 print(f"  Its profiler output: {best_variant_for_this_iteration['profiler_output_path']}")
                                 # Update the baseline for the *next* iteration's Analyzer
                                 baseline_profiler_output_for_next_iteration = best_variant_for_this_iteration['profiler_output_path']
+                                # Update overall baseline info
+                                current_baseline_info["profiler_output_path"] = best_variant_for_this_iteration['profiler_output_path']
+                                current_baseline_info["variant_id"] = best_variant_for_this_iteration['variant_id']
+                                current_baseline_info["iteration_established"] = iteration
+                                current_baseline_info["evaluation_summary_at_selection"] = best_variant_for_this_iteration['evaluation_results'].get('improvement_summary')
                             else:
                                 print(f"  No clearly improved variant found in iteration {iteration} (Step {iteration}.6). The baseline for the next iteration will remain: {baseline_profiler_output_for_next_iteration}")
                         else:
@@ -317,11 +336,33 @@ def main():
                 if iteration < args.iterations:
                     print(f"Iteration {iteration} for file {original_file_name} finished. Baseline for next iteration ({iteration + 1}) is: {baseline_profiler_output_for_next_iteration}")
                 else: # Last iteration
-                    print(f"All {args.iterations} iterations completed for file {original_file_name}.")
-                    if baseline_profiler_output_for_next_iteration != profiler_output_path: # profiler_output_path is the initial one for the file
-                        print(f"Final selected baseline profile after {args.iterations} iterations: {baseline_profiler_output_for_next_iteration}")
+                    print(f"\n=== Optimizer Summary for: {original_file_name} after {args.iterations} iterations ===")
+                    if true_initial_profiler_output_for_file:
+                        print(f"  Initial baseline profile (from Iteration 1): {true_initial_profiler_output_for_file}")
                     else:
-                        print(f"No improvement over the initial profile was identified as a new baseline after {args.iterations} iterations. Original profile: {profiler_output_path}")
+                        print(f"  Initial baseline profile could not be determined.")
+
+                    if current_baseline_info["profiler_output_path"] and \
+                       current_baseline_info["profiler_output_path"] != true_initial_profiler_output_for_file:
+                        print(f"  Final selected baseline profile: {current_baseline_info['profiler_output_path']}")
+                        print(f"    - From variant: '{current_baseline_info['variant_id']}'")
+                        print(f"    - Established in Iteration: {current_baseline_info['iteration_established']}")
+                        if current_baseline_info["evaluation_summary_at_selection"]:
+                            summary = current_baseline_info["evaluation_summary_at_selection"]
+                            print(f"    - Evaluation when selected: {summary.get('overall_assessment', 'N/A')}")
+                            if 'performance_change_percentage' in summary:
+                                print(f"      Performance Change vs. its baseline (%): {summary['performance_change_percentage']}")
+                        else:
+                            # This case might occur if the baseline is still the original one from iter 1, which didn't have an explicit "selection evaluation"
+                            if current_baseline_info["variant_id"].startswith("original"):
+                                print(f"    - This is the original code's profile or was derived without a direct preceding variant evaluation.")
+                            else:
+                                print(f"    - Note: Evaluation details at the moment of selection are not available.")
+                    elif true_initial_profiler_output_for_file: # No change from initial, or baseline is same as initial
+                        print(f"  No improvement over the initial profile was selected as the final baseline.")
+                        print(f"  Final baseline remains based on the initial profile: {true_initial_profiler_output_for_file}")
+                    else: # Should not be reached if loop runs at least once and true_initial_profiler_output_for_file was set
+                        print(f"  Could not determine final baseline details relative to an initial profile.")
 
             except Exception as e:
                 print(f"Pipeline error (during iteration {iteration}, file {original_file_name}): {e}")
