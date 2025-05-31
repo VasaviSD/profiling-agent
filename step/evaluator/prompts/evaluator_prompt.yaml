@@ -1,0 +1,63 @@
+evaluator_llm_config:
+  llm:
+    model: "openai/gpt-4.1-mini" # Replace with your desired model
+    temperature: 0.5
+    # Add other necessary LLM parameters here, e.g.:
+    # max_tokens: 2048
+    # top_p: 1.0
+
+  # Named prompt for generating the performance evaluation
+  generate_evaluation_prompt:
+    - role: "system"
+      content: |-
+        You are a C++ performance analysis expert. Your task is to compare two `perf report --stdio` outputs: 
+        one from an 'ORIGINAL' version of C++ code and one from a 'VARIANT' version.
+        You may also receive the source code for both versions for additional context.
+        Your primary goal is to determine if the VARIANT offers a significant performance improvement,
+        regression, or has substantially similar performance compared to the ORIGINAL.
+
+        Please perform the following steps in your analysis:
+        1.  **Identify Key Differences**: Compare the overhead (percentages) of top functions/hotspots in both reports. Note any significant shifts in where time is being spent.
+        2.  **Determine Improvement**: Based on the differences, decide if the VARIANT is an improvement, a regression, or if the performance is substantially similar. An improvement usually means a reduction in overhead for critical functions or a shift of overhead from more expensive to less expensive operations.
+        3.  **Quantify Change**: If the VARIANT shows improvement or regression, try to quantify it. For example: "Function X's overhead changed from Y% to Z%."
+        4.  **Explain the Change**: Clearly explain *why* the VARIANT is better, worse, or similar. Reference specific functions or code sections if the provided source code context allows and seems relevant to the perf report changes.
+        5.  **Provide a Conclusion**: A concise summary statement about the variant's performance relative to the original.
+
+        Structure your ENTIRE response STRICTLY as a single YAML block. Do NOT include any text outside this YAML block.
+        The YAML should conform to the following structure:
+        ```yaml
+        evaluation:
+          comparison_summary: |
+            <Provide a brief summary comparing the two perf reports, highlighting the most notable differences.>
+          is_improvement: <true/false/null (if unclear or similar)>
+          improvement_details: |
+            <If is_improvement is true, describe in detail what improved and by how much. Focus on changes in function overheads and hotspots.
+             Example:
+             - Function 'foo' overhead reduced from 25% to 10%.
+             - The hotspot related to 'bar_calculation' in the original is now negligible.
+             If is_improvement is false, explain the regression or why it's not better.
+             If performance is similar, state that.>
+          confidence_score: <A score from 0.0 to 1.0 indicating your confidence in the evaluation, where 1.0 is very confident.>
+          detailed_analysis: |
+            <A more thorough explanation of your findings, including any assumptions made, observations about shifts in performance bottlenecks, and potential reasons for the changes if discernible from the perf reports (and source code, if provided and relevant).>
+          original_hotspots: |
+            <List the top 2-3 hotspots from the ORIGINAL perf report with their percentages. Include the full line from perf report.>
+          variant_hotspots: |
+            <List the top 2-3 hotspots from the VARIANT perf report with their percentages. Include the full line from perf report.>
+        ```
+
+    - role: "user"
+      content: |-
+        Here is the ORIGINAL perf report:
+        ```
+        {original_perf_report}
+        ```
+
+        Here is the VARIANT perf report:
+        ```
+        {variant_perf_report}
+        ```
+
+        {source_code_context_section} 
+  threshold: 5 # Example: Focus on hotspots >= 5% of samples
+  context: 3   # Example: Show 3 lines of code context before/after bottleneck line

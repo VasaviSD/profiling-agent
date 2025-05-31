@@ -36,6 +36,13 @@ Currently, the following agents are implemented:
 -   **Output:** Produces a YAML file that includes all input fields, along with `patcher_status` (e.g., 'all_success', 'partial_success', 'all_failed') and a `patched_variants_results` list. Each item in this list details the outcome for a specific variant, including its `variant_id`, the `patched_file_path` (if successful), and a `status` ('success' or 'failed') for the file writing operation.
 -   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/patcher/README.md`.
 
+### 5. Evaluator Agent (`step/evaluator/`)
+
+-   **Purpose:** To compare the performance of a C++ code variant against an original version using their respective `perf report` outputs.
+-   **Functionality:** Takes two Profiler output YAML files (one for original, one for variant) as input. It uses an LLM to analyze the `perf_report_output` from both, determine if the variant is an improvement, quantify changes, and provide an explanatory analysis.
+-   **Output:** Produces a YAML file containing the LLM's structured evaluation, including a comparison summary, an `is_improvement` flag, details of changes, a confidence score, and identified hotspots from both reports.
+-   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/evaluator/README.md`.
+
 ## Pipeline Workflow Example
 
 These agents are designed to work in a sequence. A common workflow would be:
@@ -58,12 +65,11 @@ These agents are designed to work in a sequence. A common workflow would be:
     ```bash
     poetry run python -m step.patcher.patcher_agent step/patcher/examples/patcher_input.yaml -o step/patcher/examples/patcher_output.yaml
     ```
+5.  **Run the Evaluator Agent:** After profiling a code variant (which might be done by the Optimizer pipe or manually after using the Patcher), use the Profiler's output for the original code and the Profiler's output for the variant code as inputs to the Evaluator. 
+    ```bash
+    # Example assumes profiler_original.yaml and profiler_variant.yaml are available
+    poetry run python -m step.evaluator.evaluator_agent step/evaluator/examples/profiler_original.yaml step/evaluator/examples/profiler_variant.yaml -o step/evaluator/examples/evaluator_output.yaml
+    ```
 
 This pipeline allows for an automated flow from performance data collection and analysis to the generation of potential code optimizations and their application to new files.
 
-## Further Steps (Conceptual)
-
-Future agents in this directory could extend the pipeline, for example:
-
--   An **Evaluator Agent:** To compile and test the code variants (from the Patcher's output files or Replicator's direct output) using `perf` or other benchmarks.
--   An **Integrator Agent:** To attempt to integrate successfully evaluated code changes back into the original codebase (e.g., by generating diffs or patches, or by replacing the original file if desired).
