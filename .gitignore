@@ -83,6 +83,9 @@ data/sources/test_optimization_*/ # From an older default in main example
 perf.data
 *.perf
 
+data/patched_variants/**
+data/patched_variants/
+
 # Dummy files created by CLI tests if not cleaned up
 perf_tool_dummy_app.cpp
 perf_tool_dummy_app_compiled
