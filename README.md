@@ -63,13 +63,17 @@ The primary way to run the full optimization pipeline is using the Optimizer scr
 3.  **Run the Optimizer pipe:**
     Use the `--input-dir` argument to specify the directory containing your C++ source files and `--output-dir` to specify where the results should be saved.
     ```bash
-    python -m pipe.optimizer.optimizer --input-dir <path_to_your_cpp_source_directory> --output-dir <path_to_output_directory>
-    ```
-    For example:
-    ```bash
     python -m pipe.optimizer.optimizer --input-dir my_cpp_sources/ --output-dir optimizer_run_1
     ```
-    This will run the Profiler, then Analyzer, then Replicator, and other relevant steps in sequence for each C++ file found in `my_cpp_sources/`. The results, intermediate files, and patched variants will be saved in the `optimizer_run_1` directory.
+    This will run the Profiler, then Analyzer, then Replicator, Patcher, and Evaluator agents in sequence for each C++ file found in `my_cpp_sources/`.
+    The Optimizer profiles the initial code, then enters an iterative loop:
+    1.  **Analyzer**: Identifies bottlenecks in the (current baseline) profiled code.
+    2.  **Replicator**: Generates code variants to address these bottlenecks.
+    3.  **Patcher**: Writes these variants to disk.
+    4.  **Profiler (for variants)**: Each successfully patched variant is compiled and profiled.
+    5.  **Evaluator**: Each profiled variant is compared against the current baseline profile (initially, the original code's profile).
+    If a variant shows improvement, it becomes the new baseline for the next iteration.
+    The results, intermediate files, and patched variants will be saved in the `optimizer_run_1` directory.
 
 4.  **Running individual agents:**
     Each agent in the `step/` directory can also be run individually. Refer to their respective `README.md` files (linked in the Directory Structure section) for specific instructions. These typically require a specific input YAML file.
