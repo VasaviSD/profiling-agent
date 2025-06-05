@@ -51,29 +51,35 @@ The primary way to run the full optimization pipeline is using the Optimizer scr
     poetry shell
     ```
 
-2.  **Prepare your C++ source code:**
-    Place your C++ source files (e.g., `my_program.cpp`, `another_module.cpp`) in a directory. For example, create a directory named `my_cpp_sources` and put your files there:
+2.  **Prepare your C++ source code and executable:**
+    Place your C++ source files (e.g., `my_program.cpp`, `utils.h`, `utils.cpp`) in a directory. You will also need the path to the pre-compiled executable that these source files build into.
+    For example, your project structure might look like:
     ```
-    my_cpp_sources/
-    ├── my_program.cpp
-    └── another_module.cpp
+    my_project/
+    ├── src/
+    │   ├── my_program.cpp
+    │   ├── utils.cpp
+    │   └── utils.h
+    └── build/
+        └── my_app  <-- This is your executable
     ```
-    The Optimizer pipe will recursively find all `.cpp`, `.cc`, and `.cxx` files in the specified input directory.
+    The Optimizer pipe will process `.cpp`, `.cc`, `.cxx`, `.h`, `.hpp`, `.hxx` files found directly in the specified source directory.
 
 3.  **Run the Optimizer pipe:**
-    Use the `--input-dir` argument to specify the directory containing your C++ source files and `--output-dir` to specify where the results should be saved.
+    Use the `--source-dir` argument for your C++ source files, `--executable` for the path to your compiled application, and `--output-dir` to specify where the results should be saved.
     ```bash
-    poetry run python -m pipe.optimizer.optimizer --input-dir my_cpp_sources/ --output-dir optimizer_run_1
+    poetry run python -m pipe.optimizer.optimizer \
+        --source-dir my_project/src/ \
+        --executable my_project/build/my_app \
+        --output-dir optimizer_run_1
     ```
-    This will run the Profiler, then Analyzer, then Replicator, Patcher, and Evaluator agents in sequence for each C++ file found in `my_cpp_sources/`.
-    The Optimizer profiles the initial code, then enters an iterative loop:
-    1.  **Analyzer**: Identifies bottlenecks in the (current baseline) profiled code.
-    2.  **Replicator**: Generates code variants to address these bottlenecks.
-    3.  **Patcher**: Writes these variants to disk.
-    4.  **Profiler (for variants)**: Each successfully patched variant is compiled and profiled.
-    5.  **Evaluator**: Each profiled variant is compared against the current baseline profile (initially, the original code's profile).
-    If a variant shows improvement, it becomes the new baseline for the next iteration.
-    The results, intermediate files, and patched variants will be saved in the `optimizer_run_1` directory.
+    This will first run the `Profiler` on the provided executable and source directory to get a global performance profile.
+    Then, for each C++ source and header file found in `my_project/src/`, the Optimizer will:
+    1.  **Analyzer**: Combine the file's content with the global profile to identify potential bottlenecks.
+    2.  **Replicator**: Generate code variants to address these bottlenecks.
+    3.  **Patcher**: Write these variants to disk.
+    *(Note: Automatic profiling and evaluation of these generated variants within the Optimizer pipe are currently disabled but can be re-enabled in the script.)*
+    The results and intermediate files will be saved in the `optimizer_run_1` directory.
 
 4.  **Running individual agents:**
     Each agent in the `step/` directory can also be run individually. Refer to their respective `README.md` files (linked in the Directory Structure section) for specific instructions. These typically require a specific input YAML file.
@@ -87,7 +93,7 @@ The primary way to run the full optimization pipeline is using the Optimizer scr
 - `README.md`: This file - an overview of the project.
 - `core/`: Contains core components, base classes (like `Step`), and utilities shared across the project.
 - `pipe/`: Contains orchestration scripts that combine multiple steps into a pipeline.
-  - [`pipe/optimizer/README.md`](pipe/optimizer/README.md): Orchestrates the Profiler, Analyzer, and Replicator agents.
+  - [`pipe/optimizer/README.md`](pipe/optimizer/README.md): Orchestrates an initial global Profiler run, then for each source/header file, runs Analyzer, Replicator, and Patcher.
 - `step/`: Contains the different autonomous steps or "agents" that form the profiling and optimization pipeline. Each sub-directory typically represents a distinct stage with its own [`README.md`](step/README.md):
   - [`step/profiler/README.md`](step/profiler/README.md): Compiles the code and gathers initial `perf` data and reports.
   - [`step/analyzer/README.md`](step/analyzer/README.md): Analyzes `perf` reports (potentially using LLMs) to identify bottlenecks.

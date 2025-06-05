@@ -26,8 +26,9 @@ except ImportError as e:
     sys.exit(1)
 
 def find_cpp_source_files(directory):
-    """Finds C++ implementation files (.cpp, .cc, .cxx) in the given directory (non-recursive)."""
-    patterns = ['*.cpp', '*.cc', '*.cxx']
+    """Finds C++ implementation files (.cpp, .cc, .cxx) and header files (.h, .hpp, .hxx) 
+       in the given directory (non-recursive)."""
+    patterns = ['*.cpp', '*.cc', '*.cxx', '*.h', '*.hpp', '*.hxx']
     cpp_files = []
     for pattern in patterns:
         cpp_files.extend(glob.glob(os.path.join(directory, pattern)))
@@ -77,9 +78,9 @@ def main():
     # --- Step 2: Discover C++ source files to process individually --- 
     cpp_files_to_process = find_cpp_source_files(args.source_dir)
     if not cpp_files_to_process:
-        print(f"No C++ files (.cpp, .cc, .cxx) found directly in {args.source_dir} to process.")
+        print(f"No C++ source or header files (.cpp, .cc, .cxx, .h, .hpp, .hxx) found directly in {args.source_dir} to process.")
         sys.exit(0)
-    print(f"\nFound {len(cpp_files_to_process)} C++ files in {args.source_dir} to process individually: {cpp_files_to_process}")
+    print(f"\nFound {len(cpp_files_to_process)} C++ source/header files in {args.source_dir} to process individually: {cpp_files_to_process}")
 
     # --- Step 3: Loop through each discovered C++ source file --- 
     for current_source_file_abs_path in cpp_files_to_process:
@@ -167,10 +168,13 @@ def main():
                     print(f"    Error: Analyzer produced no 'performance_analysis' text for {original_file_name}, iter {iteration}. Skipping further optimization for this file.")
                     break # Break from iterations for this file
                 
-                # Check 3: No actionable hotspots identified (THE KEY CHECK)
-                identified_hotspots = analyzer_output_data.get('identified_hotspots')
-                if not identified_hotspots: # This covers None or an empty list
-                    print(f"    Analyzer found no actionable hotspots in {original_file_name} (iter {iteration}). Skipping further optimization attempts for this file.")
+                # Check 3: No actionable bottleneck_location identified
+                actionable_bottleneck_found = False
+                if isinstance(analyzer_output_data, dict) and analyzer_output_data.get('bottleneck_location'):
+                    actionable_bottleneck_found = True
+                
+                if not actionable_bottleneck_found:
+                    print(f"    Analyzer output for {original_file_name} (iter {iteration}) did not contain an actionable 'bottleneck_location'. Skipping further optimization attempts for this file.")
                     break # Break from iterations for this file, move to next C++ file
 
                 # --- Step 3.{iteration}.2: Run Replicator --- 
