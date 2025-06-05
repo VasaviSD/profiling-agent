@@ -238,21 +238,6 @@ if __name__ == '__main__':  # pragma: no cover
         end_time = time.time()
         print(f"\nTIME: step duration: {(end_time-start_time):.4f} seconds\n")
 
-        # Print results for inspection
-        if result_data:
-            print("\nReplicator Output:")
-            print(f"  Proposed Fix Strategy: {result_data.get('proposed_fix_strategy')}")
-            for i, variant in enumerate(result_data.get('modified_code_variants', [])):
-                print(f"  --- Variant {i+1} ({variant.get('variant_id')}) ---")
-                print(f"    Explanation: {variant.get('explanation')}")
-                print(f"    Code:\n{variant.get('code')}")
-            if result_data.get('replicator_error'):
-                print(f"  ERROR: {result_data.get('replicator_error')}")
-            if result_data.get('replicator_warning'):
-                print(f"  WARNING: {result_data.get('replicator_warning')}")
-        else:
-            print("\nReplicator did not return data from step().")
-
     except ValueError as e:
         print(f"ERROR during Replicator execution (ValueError): {e}")
         import traceback

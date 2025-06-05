@@ -74,6 +74,7 @@ data/compile/
 
 # Perf data output directory (though agent cleans its own temp perf files)
 data/perf/
+data/sources/
 
 # AI-generated optimized source code variants (match prefix used in agent)
 data/sources/optimized_code_*/

@@ -63,7 +63,7 @@ The primary way to run the full optimization pipeline is using the Optimizer scr
 3.  **Run the Optimizer pipe:**
     Use the `--input-dir` argument to specify the directory containing your C++ source files and `--output-dir` to specify where the results should be saved.
     ```bash
-    python -m pipe.optimizer.optimizer --input-dir my_cpp_sources/ --output-dir optimizer_run_1
+    poetry run python -m pipe.optimizer.optimizer --input-dir my_cpp_sources/ --output-dir optimizer_run_1
     ```
     This will run the Profiler, then Analyzer, then Replicator, Patcher, and Evaluator agents in sequence for each C++ file found in `my_cpp_sources/`.
     The Optimizer profiles the initial code, then enters an iterative loop:
@@ -79,7 +79,7 @@ The primary way to run the full optimization pipeline is using the Optimizer scr
     Each agent in the `step/` directory can also be run individually. Refer to their respective `README.md` files (linked in the Directory Structure section) for specific instructions. These typically require a specific input YAML file.
     For example, to run the Profiler directly (which needs a profiler input YAML):
     ```bash
-    python -m step.profiler.profiler_agent -o profiler_output.yaml step/profiler/examples/profiler_input.yaml
+    poetry run python -m step.profiler.profiler_agent -o profiler_output.yaml step/profiler/examples/profiler_input.yaml
     ```
 
 ## Directory Structure

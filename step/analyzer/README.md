@@ -60,11 +60,11 @@ python -m step.analyzer.analyzer_agent -o <path_to_output_yaml> <path_to_input_y
 
 **Example:**
 
-Assuming your input YAML is `step/analyzer/examples/analyzer_input_example.yaml` and you want the output in `step/analyzer/examples/analyzer_output.yaml`:
+Assuming your input YAML is `step/analyzer/examples/analyzer_input.yaml` and you want the output in `step/analyzer/examples/analyzer_output.yaml`:
 
 ```bash
 # Make sure you are in the root directory of the profiling-agent project
-poetry run python -m step.analyzer.analyzer_agent -o step/analyzer/examples/analyzer_output.yaml step/analyzer/examples/analyzer_input_example.yaml
+poetry run python -m step.analyzer.analyzer_agent -o step/analyzer/examples/analyzer_output.yaml step/analyzer/examples/analyzer_input.yaml
 ```
 
 This command will process the input, interact with the LLM as configured in `step/analyzer/prompts/performance_analysis_prompt.yaml`, and write the structured analysis to the specified output YAML file.

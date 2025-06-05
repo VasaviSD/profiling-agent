@@ -13,35 +13,35 @@ Currently, the following agents are implemented:
 -   **Purpose:** To compile C++ source code with multiple optimization presets, run `perf record` on each, generate `perf report`, and select the report from a preferred preset.
 -   **Functionality:** Reads a source directory path from YAML, uses `CppCompiler` and `PerfTool` to perform compilation and profiling for different presets (e.g., `opt_only`, `debug_opt`), and selects the results from a preferred preset for output.
 -   **Output:** Produces a YAML file containing the source code content, the `perf record` command, and the (potentially truncated) `perf report --stdio` output from the selected preset, structured for consumption by the Analyzer agent.
--   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/profiler/README.md`.
+-   **Details:** For more information on its specific inputs, outputs, and how to run it, please see [`step/profiler/README.md`](step/profiler/README.md).
 
 ### 2. Analyzer Agent (`step/analyzer/`)
 
 -   **Purpose:** To analyze C++ performance data, typically from Linux `perf` output, in conjunction with the source code.
 -   **Functionality:** It uses an LLM to identify performance bottlenecks, determine their likely causes, and extract key information like bottleneck location, type, and a detailed hypothesis.
 -   **Output:** Produces a YAML file containing the full analysis from the LLM, along with parsed, structured fields (`bottleneck_location`, `bottleneck_type`, `analysis_hypothesis`) for easy consumption by subsequent agents.
--   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/analyzer/README.md`.
+-   **Details:** For more information on its specific inputs, outputs, and how to run it, please see [`step/analyzer/README.md`](step/analyzer/README.md).
 
 ### 3. Replicator Agent (`step/replicator/`)
 
 -   **Purpose:** To take the analyzed performance bottleneck information and propose potential code modifications to address it.
 -   **Functionality:** It uses an LLM to understand the provided bottleneck details (location, type, hypothesis) and the original source code. It then generates a proposed fix strategy and multiple distinct C++ code variants that attempt to implement a solution.
 -   **Output:** Produces a YAML file containing the proposed fix strategy and a list of modified code variants, each with an explanation and the C++ code.
--   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/replicator/README.md`.
+-   **Details:** For more information on its specific inputs, outputs, and how to run it, please see [`step/replicator/README.md`](step/replicator/README.md).
 
 ### 4. Patcher Agent (`step/patcher/`)
 
 -   **Purpose:** To save all provided C++ code variants as separate source files.
 -   **Functionality:** Reads an input YAML (typically from the Replicator Agent) containing the `original_file_name` and a list of `modified_code_variants`. Each variant in the list should have a `variant_id` and the full `code` for that variant. The Patcher then creates a base output directory (defaults to `data/patched_variants/`) and, for each variant, creates a subdirectory named after a sanitized version of its `variant_id`. Inside this subdirectory, it saves the variant's `code` into a file named after the `original_file_name`.
 -   **Output:** Produces a YAML file that includes all input fields, along with `patcher_status` (e.g., 'all_success', 'partial_success', 'all_failed') and a `patched_variants_results` list. Each item in this list details the outcome for a specific variant, including its `variant_id`, the `patched_file_path` (if successful), and a `status` ('success' or 'failed') for the file writing operation.
--   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/patcher/README.md`.
+-   **Details:** For more information on its specific inputs, outputs, and how to run it, please see [`step/patcher/README.md`](step/patcher/README.md).
 
 ### 5. Evaluator Agent (`step/evaluator/`)
 
 -   **Purpose:** To compare the performance of a C++ code variant against an original version using their respective `perf report` outputs.
 -   **Functionality:** Takes two Profiler output YAML files (one for original, one for variant) as input. It uses an LLM to analyze the `perf_report_output` from both, determine if the variant is an improvement, quantify changes, and provide an explanatory analysis.
 -   **Output:** Produces a YAML file containing the LLM's structured evaluation, including a comparison summary, an `is_improvement` flag, details of changes, a confidence score, and identified hotspots from both reports.
--   **Details:** For more information on its specific inputs, outputs, and how to run it, please see `step/evaluator/README.md`.
+-   **Details:** For more information on its specific inputs, outputs, and how to run it, please see [`step/evaluator/README.md`](step/evaluator/README.md).
 
 ## Pipeline Workflow Example
 
