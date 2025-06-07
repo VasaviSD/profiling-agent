@@ -109,3 +109,14 @@ The primary way to run the full optimization pipeline is using the Optimizer scr
   - `tool/perf/`: Wrapper for the Linux `perf` tool (handling `record`, `report`, etc.).
 - `data/`: Contains data generated and used during the process. Subdirectories might include:
   - `data/sources/`: Input C++ source files.
+
+## Future Scope
+
+An extension for this project is the addition of an agent dedicated to automatically fixing compilation issues in generated code variants. Currently, if a code variant fails to compile, it is skipped. In the future, a **Compilation Fix Agent** could be integrated into the pipeline—particularly during the evaluator phase of the optimizer.
+
+This agent would:
+- Detect compilation errors in variant code.
+- Attempt to automatically fix these errors (potentially using LLMs or rule-based approaches).
+- Re-attempt compilation and, if necessary, iterate this process a configurable number of times to maximize the chances of producing a correct, compilable variant.
+
+Another possible improvement is to **merge the Patcher functionality into the Replicator agent**. This would streamline the pipeline by having the Replicator not only generate code variants but also directly handle writing these variants to disk, reducing the number of orchestration steps and simplifying data flow between agents.
