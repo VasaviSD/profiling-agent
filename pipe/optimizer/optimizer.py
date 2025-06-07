@@ -97,6 +97,19 @@ def main():
         # --- Step 2: Loop through each discovered C++ source file --- 
         print(f"\n=== Step 2: Processing each C++ source file for optimization iterations (Iteration {iteration}) ===")
 
+        # --- Clean data/patched_variants before Step 2 ---
+        patched_variants_dir = os.path.join("data", "patched_variants")
+        if os.path.exists(patched_variants_dir):
+            for filename in os.listdir(patched_variants_dir):
+                file_path = os.path.join(patched_variants_dir, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"Warning: Could not delete {file_path}: {e}")
+
         iter_output_dir_for_file = os.path.join(args.output_dir, f"iter_{iteration}")
         if not os.path.exists(iter_output_dir_for_file):
             os.makedirs(iter_output_dir_for_file)
