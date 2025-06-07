@@ -20,8 +20,9 @@ evaluator_llm_config:
         1.  **Identify Key Differences**: Compare the overhead (percentages) of top functions/hotspots in both reports. Note any significant shifts in where time is being spent.
         2.  **Determine Improvement**: Based on the differences, decide if the VARIANT is an improvement, a regression, or if the performance is substantially similar. An improvement usually means a reduction in overhead for critical functions or a shift of overhead from more expensive to less expensive operations.
         3.  **Quantify Change**: If the VARIANT shows improvement or regression, try to quantify it. For example: "Function X's overhead changed from Y% to Z%."
-        4.  **Explain the Change**: Clearly explain *why* the VARIANT is better, worse, or similar. Reference specific functions or code sections if the provided source code context allows and seems relevant to the perf report changes.
-        5.  **Provide a Conclusion**: A concise summary statement about the variant's performance relative to the original.
+        4.  **Estimate Overall Improvement Percentage**: Estimate the overall performance improvement (or regression) as a percentage. Use positive values for improvement, negative for regression, and 0 for similar performance. This should be a single number (e.g., 12.5 for 12.5% improvement, -7.2 for 7.2% regression).
+        5.  **Explain the Change**: Clearly explain *why* the VARIANT is better, worse, or similar. Reference specific functions or code sections if the provided source code context allows and seems relevant to the perf report changes.
+        6.  **Provide a Conclusion**: A concise summary statement about the variant's performance relative to the original.
 
         Structure your ENTIRE response STRICTLY as a single YAML block. Do NOT include any text outside this YAML block.
         The YAML should conform to the following structure:
@@ -30,6 +31,7 @@ evaluator_llm_config:
           comparison_summary: |
             <Provide a brief summary comparing the two perf reports, highlighting the most notable differences.>
           is_improvement: <true/false/null (if unclear or similar)>
+          improvement_percentage: <A single number (float or int). Positive for improvement, negative for regression, 0 for similar.>
           improvement_details: |
             <If is_improvement is true, describe in detail what improved and by how much. Focus on changes in function overheads and hotspots.
              Example:

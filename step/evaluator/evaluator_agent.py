@@ -216,7 +216,11 @@ class Evaluator(Step):
                 output_data['evaluation_results'] = {"raw_llm_response": llm_response_str}
             else:
                 output_data['evaluation_results'] = parsed_llm_yaml['evaluation']
-                expected_keys = ['comparison_summary', 'is_improvement', 'improvement_details', 'confidence_score', 'detailed_analysis', 'original_hotspots', 'variant_hotspots']
+                expected_keys = [
+                    'comparison_summary', 'is_improvement', 'improvement_percentage',
+                    'improvement_details', 'confidence_score', 'detailed_analysis',
+                    'original_hotspots', 'variant_hotspots'
+                ]
                 missing_keys = [k for k in expected_keys if k not in output_data['evaluation_results']]
                 if missing_keys: print(f"Warning: LLM output missing keys: {missing_keys}")
         except Exception as e:

@@ -1,48 +1,42 @@
 # step/replicator/prompts/code_replication_prompt.yaml
-# Note: 'code_replication_prompt:' top-level key has been removed.
-# 'llm:' and 'generate_variants_prompt:' are now top-level.
-
 code_replication_prompt:
   llm:
-    model: "openai/gpt-4.1-mini" 
+    model: "openai/gpt-4.1-mini"
     temperature: 0.6
-    # Add other necessary LLM parameters here if needed, e.g.:
-    # max_tokens: 4096 
+    # max_tokens: 4096 # Consider uncommenting for very large files
     # top_p: 0.9
 
-  generate_variants_prompt: # Name of the prompt section
+  generate_variants_prompt:
     - role: system
       content: |
-        You are an expert C++ software engineer specializing in code optimization and refactoring. 
-        Your task is to analyze provided C++ source code, understand a specific performance 
-        bottleneck (identified by an analysis tool), and then propose and generate multiple 
-        distinct code modifications (variants) to address this bottleneck. 
-        Each variant should aim to improve performance while maintaining correctness and 
-        should be presented as a complete, compilable code snippet or modified function.
+        You are an expert C++ software engineer. Your task is to analyze a complete C++ source file with a known performance bottleneck, then generate several distinct, optimized versions of the entire file. The generated code must be a direct, compilable, drop-in replacement for the original file.
 
     - role: user
       content: |
-        I have a C++ project with an identified performance bottleneck. Your goal is to refactor the code to alleviate this bottleneck.
+        I need you to refactor the following C++ source file to fix an identified performance bottleneck.
 
-        Original C++ Source Code (relevant parts or the full file, as appropriate):
+        **Original C++ Source File:**
         ```cpp
         {source_code}
         ```
 
-        Identified Bottleneck Details:
-        * Location: {bottleneck_location} 
-        * Type/Nature: {bottleneck_type}
-        * Analysis Hypothesis from Performance Analyzer: {analysis_hypothesis}
+        **Bottleneck Analysis:**
+        * **Location:** `{bottleneck_location}`
+        * **Description:** `{bottleneck_type}`
+        * **Hypothesis:** `{analysis_hypothesis}`
 
-        Please perform the following:
-        1.  Start your response with "Proposed Fix Strategy:" followed by a brief (1-2 paragraph) description of your overall strategy for addressing this bottleneck based on the hypothesis.
-        2.  After the strategy, generate exactly 3 distinct C++ code variants that implement a fix.
-            * For each variant, use a heading like "### Variant 1", "### Variant 2", and "### Variant 3".
-            * Immediately following each heading, provide the **complete and self-contained modified C++ code** within a C++ Markdown code block (```cpp ... ```).
-                * **Crucially, this means that if the original `source_code` included elements like `#include` directives, namespace declarations, a `main()` function, class definitions, helper functions, variables, comments, or other structural components, these must be fully present and correctly adapted in your generated variant.** Do not omit these essential components.
-                * The goal is for each variant to be a compilable unit that accurately reflects the intended modification within the full context of the provided original code, preserving its overall structure.
-            * Ensure each variant is syntactically correct C++.
-            * Aim for diversity in the approaches for each variant if possible (e.g., algorithmic change, data structure optimization, loop restructuring, parallelization hints, use of different C++ features or library functions).
-            * Briefly explain the rationale behind each variant in a short comment before its code block if the change isn't obvious.
+        **Your Task:**
 
-        Output ONLY the strategy and the 3 delineated variants with their code. Do not include any other introductory or concluding remarks.
+        Adhere strictly to the following rules for your response:
+
+        1.  **Start with a Fix Strategy:** Begin with the heading `## Proposed Fix Strategy` and provide a concise, one-paragraph summary of your approach based on the provided hypothesis.
+
+        2.  **Generate 3 Complete Variants:** Create exactly three distinct C++ code variants.
+            * Each variant must be a **complete and compilable source file** that can directly replace the original. Preserve all necessary components like `#include` directives, `namespace` declarations, `main()` function, classes, and helper functions.
+            * Use the headings `### Variant 1`, `### Variant 2`, and `### Variant 3`.
+            * Place the entire, self-contained code for each variant inside a `cpp` markdown block.
+            * Before each code block, add a single C++ comment (`// Rationale: ...`) to briefly explain the logic of that specific variant.
+
+        3.  **Minimize Unrelated Changes:** Only modify the code necessary to implement the performance fix. Preserve the original code's structure, formatting, and comments as much as possible to ensure a clean `diff`.
+
+        Do not include any other text, introductions, or conclusions in your response.

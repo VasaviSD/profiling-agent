@@ -78,8 +78,12 @@ The primary way to run the full optimization pipeline is using the Optimizer scr
     1.  **Analyzer**: Combine the file's content with the global profile to identify potential bottlenecks.
     2.  **Replicator**: Generate code variants to address these bottlenecks.
     3.  **Patcher**: Write these variants to disk.
-    *(Note: Automatic profiling and evaluation of these generated variants within the Optimizer pipe are currently disabled but can be re-enabled in the script.)*
-    The results and intermediate files will be saved in the `optimizer_run_1` directory.
+    4.  **Profiler (per variant)**: Profile each generated variant in its own directory context.
+    5.  **Evaluator (per variant)**: Compare each variant's profile to the original and print if a variant is a "Significant Improvement".
+    
+    The results and intermediate files will be saved in the `optimizer_run_1` directory.  
+    After each iteration, the pipeline prints a summary table of all variants, highlighting the best variant (with the highest improvement percentage). At the end, it prints an overall summary and the best variant across all iterations.
+
 
 4.  **Running individual agents:**
     Each agent in the `step/` directory can also be run individually. Refer to their respective `README.md` files (linked in the Directory Structure section) for specific instructions. These typically require a specific input YAML file.

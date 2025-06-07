@@ -22,13 +22,22 @@ The Evaluator agent is responsible for comparing the performance of a C++ code v
     -   Identify key differences in function overheads and hotspots.
     -   Determine if the variant is an improvement.
     -   Quantify and explain any improvements or regressions.
+    -   **Estimate and output the overall improvement percentage as `improvement_percentage` (positive for improvement, negative for regression, 0 for similar performance).**
     -   Provide a confidence score for its evaluation.
 
 -   **Output:** Produces a YAML file containing:
     -   `evaluator_input_config_path`: Path to the primary input YAML used by the Evaluator.
     -   `actual_original_profiler_output_path`: Absolute path to the original profiler YAML that was processed.
     -   `actual_variant_profiler_output_path`: Absolute path to the variant profiler YAML that was processed.
-    -   The structured `evaluation_results` from the LLM (comparison_summary, is_improvement, etc.).
+    -   The structured `evaluation_results` from the LLM, including:
+        -   `comparison_summary`
+        -   `is_improvement`
+        -   `improvement_percentage` **(float or int, positive for improvement, negative for regression, 0 for similar)**
+        -   `improvement_details`
+        -   `confidence_score`
+        -   `detailed_analysis`
+        -   `original_hotspots`
+        -   `variant_hotspots`
     -   An `evaluator_error` field if any issues occurred.
 
 ## How to Run
@@ -79,6 +88,7 @@ evaluation_results:
   comparison_summary: |
     The variant shows a significant reduction in overhead for the 'main' function and relocates some overhead to a new 'bar' function which appears more efficient overall.
   is_improvement: true
+  improvement_percentage: 35.0
   improvement_details: |
     - Overhead in 'main' decreased from 50.00% to 20.00%.
     - A new function 'bar' now accounts for 10.00%, which seems to have taken over work from the original 'foo' (30.00%) more efficiently.
